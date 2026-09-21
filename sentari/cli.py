@@ -35,6 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=120, help="Per-tool timeout seconds (default 120).")
     p.add_argument("--json", metavar="FILE", help="Write full results (with evidence) to JSON.")
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
+    p.add_argument("--retest", metavar="BASELINE_JSON",
+                   help="Compare this run against a prior --json baseline (fixed/still/new).")
     p.add_argument("--audit-log", default="sentari-audit.log", help="Append-only audit log path.")
     p.add_argument("--version", action="version", version=f"sentari {__version__}")
     return p
@@ -83,6 +85,19 @@ def main(argv: list[str] | None = None) -> int:
         results.append(result)
 
     print(console.render(results))
+
+    if args.retest:
+        from . import retest as retest_mod
+        try:
+            baseline = retest_mod.load_baseline(args.retest)
+        except (OSError, ValueError) as e:
+            print(f"error: could not read baseline {args.retest!r}: {e}", file=sys.stderr)
+            return 4
+        current = [f for r in results for f in r.findings]
+        rr = retest_mod.compare(baseline, current)
+        print(retest_mod.render(rr, args.retest))
+        audit.record("retest", target=args.target, fixed=len(rr.fixed),
+                     still=len(rr.still_present), new=len(rr.new))
 
     if args.json:
         Path(args.json).write_text(
