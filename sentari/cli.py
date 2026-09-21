@@ -80,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         # each phase gets a fresh runner so its result carries only its own evidence
         ctx.runner = ToolRunner(default_timeout=args.timeout, dry_run=args.dry_run)
         result = cls().run(ctx)
+        # make findings so far available to later phases (e.g. verification)
+        ctx.shared.setdefault("prior_findings", []).extend(result.findings)
         audit.record("phase.done", target=args.target, phase=cls.name,
                      findings=len(result.findings), error=result.error)
         results.append(result)
