@@ -34,6 +34,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dry-run", action="store_true", help="Show what would run; execute nothing.")
     p.add_argument("--timeout", type=int, default=120, help="Per-tool timeout seconds (default 120).")
     p.add_argument("--json", metavar="FILE", help="Write full results (with evidence) to JSON.")
+    p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
     p.add_argument("--audit-log", default="sentari-audit.log", help="Append-only audit log path.")
     p.add_argument("--version", action="version", version=f"sentari {__version__}")
     return p
@@ -89,6 +90,11 @@ def main(argv: list[str] | None = None) -> int:
             encoding="utf-8",
         )
         print(f"\nFull results written to {args.json}")
+
+    if args.html:
+        from .reporting import html as html_report
+        Path(args.html).write_text(html_report.render_html(results, args.target), encoding="utf-8")
+        print(f"HTML report written to {args.html}")
     return 0
 
 
