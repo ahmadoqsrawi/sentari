@@ -1,0 +1,43 @@
+Sentari License (Proprietary, No-Derivatives)
+Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
+All rights reserved.
+
+This license governs use of the accompanying software ("Sentari"). By
+downloading, installing, copying, or otherwise using Sentari, you agree to
+these terms. If you do not agree, do not use Sentari.
+
+1. GRANT OF LICENSE
+   Subject to these terms, the copyright holder grants you a non-exclusive,
+   non-transferable, royalty-free license to install and use Sentari, in its
+   unmodified form, solely for AUTHORIZED security testing that you are legally
+   permitted to perform.
+
+2. RESTRICTIONS: YOU MAY NOT
+   a) modify, adapt, translate, or create derivative works of Sentari;
+   b) redistribute modified versions of Sentari;
+   c) remove, obscure, or alter any copyright, license, or attribution notice;
+   d) sublicense, sell, or rent Sentari as your own product;
+   e) reverse engineer except to the extent this restriction is prohibited by
+      applicable law.
+   You MAY redistribute verbatim, unmodified copies provided this LICENSE file
+   and all notices are included unchanged.
+
+3. AUTHORIZED USE ONLY
+   Sentari executes real offensive security tools. You may use it ONLY against
+   systems that you own or for which you hold explicit, written authorization.
+   You are solely responsible for obtaining authorization and for complying with
+   all applicable laws. Unauthorized use is strictly prohibited.
+
+4. NO WARRANTY
+   SENTARI IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO MERCHANTABILITY, FITNESS FOR A
+   PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+5. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR
+   OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE,
+   ARISING FROM, OUT OF, OR IN CONNECTION WITH SENTARI OR ITS USE.
+
+6. TERMINATION
+   This license terminates automatically if you breach any term. On termination
+   you must stop using Sentari and destroy all copies.

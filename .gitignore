@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+sentari-audit.log
+*.json
+!pyproject.json
