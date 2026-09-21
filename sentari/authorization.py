@@ -1,9 +1,9 @@
 """Authorization gate + audit log.
 
 Sentari runs real offensive tools, so scope enforcement is not optional and is
-NOT a decorative string (that was HackGPT's mistake). A target is refused unless
-it matches the operator-declared scope, and the operator must explicitly attest
-authorization. Every run is written to an append-only audit log.
+never a decorative string: a target is refused unless it matches the
+operator-declared scope, and the operator must explicitly attest authorization.
+Every run is written to an append-only audit log.
 """
 from __future__ import annotations
 
