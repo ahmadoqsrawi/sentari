@@ -6,9 +6,11 @@ Add new phases here one at a time as they are implemented:
 """
 from .base import Phase, PhaseContext
 from .recon import ReconPhase
+from .scanning import ScanPhase
 
 PHASES: list[type[Phase]] = [
     ReconPhase,
+    ScanPhase,
 ]
 
-__all__ = ["Phase", "PhaseContext", "PHASES", "ReconPhase"]
+__all__ = ["Phase", "PhaseContext", "PHASES", "ReconPhase", "ScanPhase"]

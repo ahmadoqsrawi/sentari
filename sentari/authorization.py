@@ -40,7 +40,7 @@ class Scope:
         return cls(hosts=hosts, cidrs=cidrs)
 
     def contains(self, target: str) -> bool:
-        t = target.strip().lower()
+        t = host_only(target).lower()
         if t in self.hosts:
             return True
         # direct IP match against CIDRs
@@ -58,6 +58,22 @@ class Scope:
 
     def is_empty(self) -> bool:
         return not self.hosts and not self.cidrs
+
+
+def host_only(target: str) -> str:
+    """Extract the hostname from a bare host, host:port, or URL. Leaves IPv6
+    literals (multiple colons) intact."""
+    t = target.strip()
+    if "://" in t:
+        from urllib.parse import urlparse
+        return urlparse(t).hostname or t
+    t = t.split("/")[0]
+    # strip a single trailing :port (but not IPv6, which has multiple colons)
+    if t.count(":") == 1:
+        host, _, port = t.partition(":")
+        if port.isdigit():
+            return host
+    return t
 
 
 def _resolve_all(host: str) -> list[str]:
