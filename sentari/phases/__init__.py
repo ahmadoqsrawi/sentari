@@ -7,10 +7,12 @@ Add new phases here one at a time as they are implemented:
 from .base import Phase, PhaseContext
 from .recon import ReconPhase
 from .scanning import ScanPhase
+from .vuln import VulnPhase
 
 PHASES: list[type[Phase]] = [
     ReconPhase,
     ScanPhase,
+    VulnPhase,
 ]
 
-__all__ = ["Phase", "PhaseContext", "PHASES", "ReconPhase", "ScanPhase"]
+__all__ = ["Phase", "PhaseContext", "PHASES", "ReconPhase", "ScanPhase", "VulnPhase"]

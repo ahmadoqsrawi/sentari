@@ -29,6 +29,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--list-phases", action="store_true", help="List available phases and exit.")
     p.add_argument("--no-safe-mode", action="store_true",
                    help="Allow more intrusive checks (default: safe mode on).")
+    p.add_argument("--wordlist", help="Wordlist path for gobuster content discovery (Phase 2).")
+    p.add_argument("--sqlmap-url", help="Explicit URL to test with sqlmap (Phase 3, gated).")
     p.add_argument("--dry-run", action="store_true", help="Show what would run; execute nothing.")
     p.add_argument("--timeout", type=int, default=120, help="Per-tool timeout seconds (default 120).")
     p.add_argument("--json", metavar="FILE", help="Write full results (with evidence) to JSON.")
@@ -60,7 +62,13 @@ def main(argv: list[str] | None = None) -> int:
     runner = ToolRunner(default_timeout=args.timeout, dry_run=args.dry_run)
     selected = {s.strip() for s in args.phases.split(",")} if args.phases != "all" else None
 
-    ctx = PhaseContext(target=args.target, runner=runner, safe_mode=not args.no_safe_mode)
+    options = {}
+    if args.wordlist:
+        options["wordlist"] = args.wordlist
+    if args.sqlmap_url:
+        options["sqlmap_url"] = args.sqlmap_url
+    ctx = PhaseContext(target=args.target, runner=runner, safe_mode=not args.no_safe_mode,
+                       options=options)
     results = []
     for cls in sorted(PHASES, key=lambda c: c.number):
         if selected is not None and cls.name not in selected:
