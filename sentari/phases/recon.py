@@ -17,6 +17,7 @@ import urllib.request
 from typing import Optional
 from urllib.parse import urlparse
 
+from ..classify import classify
 from ..concurrency import pmap
 from ..models import Finding, PhaseResult, Severity
 from ..parsers.nmap import parse_nmap_xml
@@ -56,7 +57,8 @@ class ReconPhase(Phase):
 
     def execute(self, ctx: PhaseContext, result: PhaseResult) -> None:
         host = _hostname(ctx.target)
-        result.tools_available = {t: ctx.runner.available(t) for t in ("nmap", "naabu", "httpx")}
+        result.tools_available = {t: ctx.runner.available(t)
+                                  for t in ("nmap", "naabu", "masscan", "httpx")}
 
         ips = self._resolve(ctx, result, host)
         if not ips:
@@ -67,8 +69,11 @@ class ReconPhase(Phase):
         elif result.tools_available["naabu"]:
             result.notes.append("using naabu for port discovery.")
             open_ports = self._naabu(ctx, result, host)
+        elif result.tools_available["masscan"] and not ctx.safe_mode:
+            result.notes.append("using masscan for port discovery.")
+            open_ports = self._masscan(ctx, result, host)
         else:
-            result.notes.append("nmap not installed: using built-in TCP connect scan.")
+            result.notes.append("using built-in TCP connect scan.")
             open_ports = self._builtin_portscan(ctx, result, host)
 
         # store for later phases
@@ -133,7 +138,7 @@ class ReconPhase(Phase):
                     title=f"Open port {port}/tcp", severity=Severity.INFO,
                     description=f"TCP port {port} is open on {host}.",
                     evidence_ids=[ev.id], target=ctx.target, phase=self.name,
-                    location=f"{port}/tcp",
+                    location=f"{port}/tcp", metadata={"service_class": classify(port)},
                 ))
         return sorted(open_ports)
 
@@ -155,11 +160,28 @@ class ReconPhase(Phase):
                 description=f"nmap reports {s.port}/{s.protocol} open: {s.label()}.",
                 evidence_ids=[ev.id], target=ctx.target, phase=self.name,
                 location=f"{s.port}/{s.protocol}",
-                metadata={"service": s.service, "product": s.product, "version": s.version},
+                metadata={"service": s.service, "product": s.product, "version": s.version,
+                          "service_class": classify(s.port, s.service)},
             ))
         if not services and ev.returncode != 0:
             result.notes.append(f"nmap exited {ev.returncode}: {ev.stderr[:200]}")
         return open_ports
+
+    # --- masscan fast port discovery (needs root; gated by safe mode) ---
+    def _masscan(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[int]:
+        ev = ctx.runner.run(["masscan", host, "-p1-65535", "--rate", "1000"],
+                            tool="masscan", timeout=600)
+        import re as _re
+        ports = sorted({int(m) for m in _re.findall(r"port (\d+)/tcp", ev.stdout)})
+        for port in ports:
+            result.findings.append(Finding(
+                title=f"Open port {port}/tcp", severity=Severity.INFO,
+                description=f"masscan reports {port}/tcp open on {host}.",
+                evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+                location=f"{port}/tcp", metadata={"service_class": classify(port)}))
+        if not ports and ev.returncode != 0:
+            result.notes.append(f"masscan exited {ev.returncode} (needs root): {ev.stderr[:120]}")
+        return ports
 
     # --- naabu fast port discovery ---
     def _naabu(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[int]:
@@ -175,7 +197,7 @@ class ReconPhase(Phase):
                     title=f"Open port {port}/tcp", severity=Severity.INFO,
                     description=f"naabu reports {port}/tcp open on {host}.",
                     evidence_ids=[ev.id], target=ctx.target, phase=self.name,
-                    location=f"{port}/tcp"))
+                    location=f"{port}/tcp", metadata={"service_class": classify(port)}))
         return sorted(set(ports))
 
     # --- httpx web fingerprint ---
