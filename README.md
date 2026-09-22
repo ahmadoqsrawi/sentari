@@ -2,7 +2,7 @@
 
 # 🛡️ Sentari
 
-### Evidence-grounded, authorized security assessment
+### Evidence-grounded security assessment for security teams, with optional AI triage
 
 <p>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
