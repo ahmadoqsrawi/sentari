@@ -35,6 +35,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=120, help="Per-tool timeout seconds (default 120).")
     p.add_argument("--json", metavar="FILE", help="Write full results (with evidence) to JSON.")
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
+    p.add_argument("--save-run", metavar="DIR",
+                   help="Save this run as <dir>/<timestamp>-<target>.json for the dashboard.")
+    p.add_argument("--serve", action="store_true",
+                   help="Start the read-only web dashboard instead of scanning.")
+    p.add_argument("--port", type=int, default=8600, help="Dashboard port (default 8600).")
+    p.add_argument("--runs-dir", default="runs", help="Directory of saved runs (dashboard).")
     p.add_argument("--retest", metavar="BASELINE_JSON",
                    help="Compare this run against a prior --json baseline (fixed/still/new).")
     p.add_argument("--no-compliance", action="store_true",
@@ -78,6 +84,11 @@ def _analysis_to_dict(a) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.serve:
+        from .web import serve
+        serve(args.runs_dir, args.port)
+        return 0
 
     if args.list_phases:
         for cls in sorted(PHASES, key=lambda c: c.number):
@@ -148,14 +159,23 @@ def main(argv: list[str] | None = None) -> int:
         audit.record("retest", target=args.target, fixed=len(rr.fixed),
                      still=len(rr.still_present), new=len(rr.new))
 
+    payload = {"results": [r.to_dict() for r in results]}
+    if analysis is not None:
+        payload["ai_analysis"] = _analysis_to_dict(analysis)
+    payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
+
     if args.json:
-        payload = {"results": [r.to_dict() for r in results]}
-        if analysis is not None:
-            payload["ai_analysis"] = _analysis_to_dict(analysis)
-        Path(args.json).write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8",
-        )
+        Path(args.json).write_text(payload_json, encoding="utf-8")
         print(f"\nFull results written to {args.json}")
+
+    if args.save_run:
+        import re as _re
+        from datetime import datetime as _dt
+        d = Path(args.save_run); d.mkdir(parents=True, exist_ok=True)
+        slug = _re.sub(r"[^A-Za-z0-9._-]", "_", args.target)[:40]
+        run_file = d / f"{_dt.now().strftime('%Y%m%d-%H%M%S')}-{slug}.json"
+        run_file.write_text(payload_json, encoding="utf-8")
+        print(f"Run saved to {run_file} (view with: sentari --serve --runs-dir {args.save_run})")
 
     if args.html:
         from .reporting import html as html_report
