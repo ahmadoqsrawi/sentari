@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=int, default=120, help="Per-tool timeout seconds (default 120).")
     p.add_argument("--json", metavar="FILE", help="Write full results (with evidence) to JSON.")
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
+    p.add_argument("--xml", metavar="FILE", help="Write an XML report.")
+    p.add_argument("--pdf", metavar="FILE", help="Write a PDF report (needs reportlab).")
     p.add_argument("--save-run", metavar="DIR",
                    help="Save this run as <dir>/<timestamp>-<target>.json for the dashboard.")
     p.add_argument("--db", metavar="DSN",
@@ -284,6 +286,16 @@ def main(argv: list[str] | None = None) -> int:
         from .reporting import html as html_report
         Path(args.html).write_text(html_report.render_html(results, args.target), encoding="utf-8")
         print(f"HTML report written to {args.html}")
+
+    if args.xml:
+        from .reporting import xml as xml_report
+        Path(args.xml).write_text(xml_report.render_xml(results, args.target), encoding="utf-8")
+        print(f"XML report written to {args.xml}")
+
+    if args.pdf:
+        from .reporting import pdf as pdf_report
+        ok, msg = pdf_report.render_pdf(results, args.target, args.pdf)
+        print(msg)
     return 0
 
 

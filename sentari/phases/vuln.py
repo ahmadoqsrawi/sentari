@@ -80,12 +80,16 @@ class VulnPhase(Phase):
             refs = info.get("reference") or []
             if isinstance(refs, str):
                 refs = [refs]
+            from ..cvss import from_nuclei_info
+            meta = {"template_id": tid, "nuclei_severity": info.get("severity")}
+            cvss = from_nuclei_info(info)
+            if cvss:
+                meta["cvss"] = cvss
             result.findings.append(Finding(
                 title=f"{name} [{tid}]", severity=sev,
                 description=(info.get("description") or f"nuclei template {tid} matched.").strip(),
                 evidence_ids=[ev.id], target=ctx.target, phase=self.name,
-                location=matched, references=list(refs),
-                metadata={"template_id": tid, "nuclei_severity": info.get("severity")},
+                location=matched, references=list(refs), metadata=meta,
             ))
             count += 1
         if count == 0 and ev.returncode not in (0,):
