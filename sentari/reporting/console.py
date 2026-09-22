@@ -61,7 +61,22 @@ def render(results: list[PhaseResult]) -> str:
         cvss = (f.metadata or {}).get("cvss") or {}
         if cvss.get("score") is not None:
             lines.append(f"        cvss: {cvss['score']} {cvss.get('vector','')}".rstrip())
+        if (f.metadata or {}).get("known_exploited"):
+            kev = ", ".join((f.metadata or {}).get("kev_cves", []))
+            lines.append(f"        KNOWN EXPLOITED (CISA KEV): {kev}")
+        risk = (f.metadata or {}).get("risk")
+        if risk:
+            lines.append(f"        risk: likelihood={risk['likelihood']} impact={risk['impact']}")
+        bi = (f.metadata or {}).get("business_impact")
+        if bi:
+            lines.append(f"        business impact: {bi['impact']} "
+                         f"(score {bi['score']}, asset value {bi['asset_value']})")
         lines.append(f"        evidence: {', '.join(f.evidence_ids)}")
+
+    from ..prioritize import risk_matrix
+    matrix = risk_matrix(results)
+    if matrix:
+        lines.append(matrix)
 
     lines.append("\n" + "-" * 70)
     lines.append("EVIDENCE (ground truth)")
