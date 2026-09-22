@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Lightweight parallelism (standard library).
 
 Independent network probes (port connects, path fetches) spend almost all their

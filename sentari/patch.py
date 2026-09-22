@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Propose concrete code fixes as diffs, applied only by explicit user action.
 
 For findings that map to a source location, this asks the AI for a minimal

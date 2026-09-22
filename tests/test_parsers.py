@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 import unittest
 
 from sentari.parsers.nmap import parse_nmap_xml

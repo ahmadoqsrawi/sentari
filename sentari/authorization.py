@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Authorization gate + audit log.
 
 Sentari runs real offensive tools, so scope enforcement is not optional and is

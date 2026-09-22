@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 0: OSINT.
 
 Passive intelligence gathering before the active phases: subdomain enumeration

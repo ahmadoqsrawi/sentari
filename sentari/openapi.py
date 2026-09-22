@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """API spec ingestion: OpenAPI v3, Swagger v2, and Postman collections.
 
 Reads a spec (a local file or a URL) and extracts the concrete request URLs it

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Prometheus metrics from the stored runs.
 
 Emits the standard Prometheus text format so a scrape job can chart real scan

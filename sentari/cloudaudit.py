@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Cloud misconfiguration auditing via Prowler.
 
 Runs Prowler against a cloud account and maps its FAILed checks to findings.

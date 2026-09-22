@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """AI autopilot: let an LLM drive the assessment flow, safely.
 
 At each step the model sees what has run and what was found, then picks the next

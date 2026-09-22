@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Read-only web dashboard + REST API, built on the standard library only.
 
 Serves runs saved by `sentari ... --save-run DIR` (each a JSON payload produced

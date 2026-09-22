@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """AI-assisted OSINT, kept grounded.
 
 The model is used for two things only, and neither one gets to assert a fact:

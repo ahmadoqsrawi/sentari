@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Cross-asset correlation.
 
 Given a set of stored runs, finds the same issue across more than one target, so

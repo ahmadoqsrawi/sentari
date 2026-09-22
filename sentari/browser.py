@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Headless-browser client-side checks (DAST), grounded in what the browser does.
 
 Drives a real headless browser (Playwright) against authorized URLs to find

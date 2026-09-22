@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Remediation write-up and an optional draft pull request.
 
 This is suggest-only on purpose. It does not edit application code. It turns the

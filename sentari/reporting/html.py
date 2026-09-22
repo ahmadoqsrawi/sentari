@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Self-contained HTML report. No external assets, no JS required (uses native
 <details>). Every finding links to the exact evidence that proves it, so the
 report is auditable: the defining property of Sentari.

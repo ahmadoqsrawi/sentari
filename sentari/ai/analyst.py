@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Grounded AI triage.
 
 Feeds the LLM ONLY the real findings and evidence excerpts Sentari collected,

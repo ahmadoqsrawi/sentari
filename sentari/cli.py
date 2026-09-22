@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Sentari CLI: the engine that authorizes a target and runs phases in order."""
 from __future__ import annotations
 

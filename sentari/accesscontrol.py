@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Broken access control / IDOR testing by comparing identities.
 
 Given the same protected URLs requested as several identities (and anonymously),

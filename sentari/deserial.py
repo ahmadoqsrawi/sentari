@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Insecure-deserialization surface detection.
 
 Flags serialized objects carried in client-controllable inputs (URL parameters

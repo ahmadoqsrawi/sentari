@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Session-fixation check.
 
 A well-behaved app issues a new session identifier when a user authenticates. If

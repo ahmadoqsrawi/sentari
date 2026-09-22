@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 6: Retest.
 
 Compares a fresh scan against a baseline produced by an earlier run's --json

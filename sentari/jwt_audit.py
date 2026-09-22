@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """JWT auditing (read-only, offline).
 
 Decodes a JSON Web Token and checks it for well-known weaknesses: the `alg=none`

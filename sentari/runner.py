@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """ToolRunner: the ONLY way findings get their ground truth.
 
 Every external tool invocation goes through here. The runner records the exact

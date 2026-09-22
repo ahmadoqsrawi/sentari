@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """CVSS v3.1 base-score scoring.
 
 Computes a base score from a CVSS v3.1 vector string, and maps a score to a

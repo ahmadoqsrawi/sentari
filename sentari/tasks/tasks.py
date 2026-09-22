@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Celery task wrapping the shared assessment engine.
 
 The task runs the exact same `run_assessment` code path as the CLI, so a scan

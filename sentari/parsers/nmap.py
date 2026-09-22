@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Parse nmap XML output (-oX -) into structured service records.
 
 Pure parsing of real tool output: no inference. If nmap didn't report it, it

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Business-impact scoring and a risk matrix.
 
 Both are transparent, rule-based ratings over the real findings:

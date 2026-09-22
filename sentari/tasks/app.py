@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Optional Celery application for distributed/queued scans.
 
 Celery is imported lazily: if it (and a broker like Redis) are not installed,

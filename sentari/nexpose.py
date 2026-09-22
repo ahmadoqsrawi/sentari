@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Rapid7 Nexpose / InsightVM connector.
 
 Pulls vulnerability results for a host from a Nexpose/InsightVM console through

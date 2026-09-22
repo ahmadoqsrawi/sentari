@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 2 (cloud): misconfiguration audit with Prowler.
 
 Runs only when --cloud-audit PROVIDER is given. It audits your own cloud account

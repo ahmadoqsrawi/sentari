@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 3 (proxy): ingest captured HTTP traffic.
 
 Runs only when --proxy-ingest FILE is given. It reads a capture produced by the

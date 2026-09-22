@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Tool schemas for native function-calling.
 
 These are the OpenAI tool-spec format. The Anthropic provider converts them to

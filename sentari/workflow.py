@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Business-logic workflow testing (operator-defined).
 
 Business-logic flaws cannot be found generically, so this replays a sequence of

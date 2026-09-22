@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Injection and logic testing helpers (payloads + pure decision logic).
 
 The orchestration lives in phases/injection.py; the testable pieces are here:

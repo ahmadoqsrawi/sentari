@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Docker sandbox for the gated offensive phases.
 
 When enabled, the exploitation and post-exploitation tools run inside a

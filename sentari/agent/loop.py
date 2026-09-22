@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """The function-calling agent loop.
 
 The model plans and calls tools one at a time; the dispatcher runs each against

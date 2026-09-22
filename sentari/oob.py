@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Out-of-band interaction listener.
 
 A small HTTP server used to confirm blind vulnerabilities (SSRF, XXE) by proof:

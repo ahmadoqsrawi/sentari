@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Graph of agents: specialized workers that share one blackboard.
 
 Instead of one linear pass, the work is split into specialized nodes that run in

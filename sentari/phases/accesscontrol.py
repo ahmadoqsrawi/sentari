@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 3 (access control): broken-access-control / IDOR testing.
 
 Runs only when --access-control is given with at least one --identity. It

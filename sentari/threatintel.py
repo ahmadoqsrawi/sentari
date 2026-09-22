@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Threat-intel correlation via the CISA Known Exploited Vulnerabilities catalog.
 
 Correlates the CVEs on findings against CISA KEV (a public, authoritative list of

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Static analysis (SAST) via semgrep.
 
 Runs semgrep over a source tree and maps its results to findings. This is the

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 1: Reconnaissance.
 
 Goal: establish what actually exists at the target: resolved IPs, reachable

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 2: Scanning & Enumeration.
 
 Builds on Phase 1's discovered web ports (via ctx.shared) and performs real,

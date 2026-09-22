@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 3: Vulnerability Assessment.
 
 Runs real detection engines against the discovered web surface and reports only

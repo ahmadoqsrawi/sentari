@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Assessment engine: the single code path that runs the phases.
 
 Both the CLI and the (optional) Celery worker call `run_assessment`, so a scan

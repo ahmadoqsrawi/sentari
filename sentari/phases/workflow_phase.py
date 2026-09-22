@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 3 (business logic): replay an operator-defined workflow.
 
 Runs only when --workflow FILE is given. It replays the described request

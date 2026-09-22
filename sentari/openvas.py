@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """OpenVAS / Greenbone (GVM) connector.
 
 Pulls results from a Greenbone instance through python-gvm and maps them to

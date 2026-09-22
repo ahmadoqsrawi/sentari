@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Known AI models per provider.
 
 A convenience list for `--list-models`. It is not exhaustive and not a limit:

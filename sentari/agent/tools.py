@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """The agent's toolbox.
 
 A fixed set of actions the model may call. The dispatcher runs each one through

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 2 (static): SAST over a source tree with semgrep.
 
 Runs only when a path is given with --sast. It scans code, not the live target,

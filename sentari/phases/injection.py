@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 3 (injection & logic): SSRF, XXE, NoSQLi, mass assignment, race.
 
 Runs only with --injection. SSRF and XXE are confirmed out-of-band: Sentari

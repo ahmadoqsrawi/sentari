@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Compliance mapping.
 
 Tags each REAL finding with standards references (OWASP Top 10 2021, CWE, and a

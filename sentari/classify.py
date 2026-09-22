@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Service classification (rule-based).
 
 Groups a discovered service into a category (web, database, mail, remote-access,

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Forward findings and run summaries to a SIEM.
 
 Sends the real results of a scan to Splunk (HEC), Elasticsearch, a syslog

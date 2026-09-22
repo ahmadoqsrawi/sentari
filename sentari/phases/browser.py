@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Phase 3 (client-side): headless-browser DAST.
 
 Runs only when requested with --browser. Drives a real headless browser against

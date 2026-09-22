@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Multi-provider LLM abstraction.
 
 Mirrors the breadth of a multi-provider AI layer (OpenAI, Anthropic, Google,

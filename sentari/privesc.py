@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 """Privilege-escalation enumeration over SSH (read-only).
 
 Given credentials to an authorized Linux host, this runs a curated set of
