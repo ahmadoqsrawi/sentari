@@ -1,7 +1,7 @@
 ---
 name: network-infrastructure-scanning
 description: Map a host or network with Sentari. Resolves DNS, discovers open ports and services, classifies them, checks TLS and security headers, finds exposed sensitive paths, and correlates any CVEs against the CISA Known Exploited Vulnerabilities catalog. Uses nmap, masscan, or naabu when installed and a built-in TCP scan otherwise. Use when the user wants to scan a host, IP, or network they are authorized to test for open services and infrastructure exposure.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

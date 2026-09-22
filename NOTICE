@@ -1,10 +1,16 @@
 Sentari
 Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
-All rights reserved.
 
-Sentari is licensed under the Sentari License (proprietary, no-derivatives).
-See the LICENSE file for the full terms. You may use and share verbatim copies;
-you may not modify, create derivatives, or redistribute modified versions.
+Sentari is free software: you can redistribute it and/or modify it under the
+terms of the GNU Affero General Public License, version 3 or any later version,
+as published by the Free Software Foundation. See the LICENSE file for the full
+terms. It is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.
+
+Because Sentari is AGPL-licensed, if you run a modified version as a network
+service, you must offer that service's users the corresponding source of your
+modified version.
 
 ------------------------------------------------------------------------------
 Third-party tools

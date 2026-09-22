@@ -1,7 +1,7 @@
 ---
 name: security-reporting-and-dashboards
 description: Produce reports and dashboards from a Sentari assessment. Writes HTML, JSON, XML, and PDF reports, serves a read-only executive dashboard with KPI cards, severity and trend charts, a risk matrix and compliance coverage, exports findings to a SIEM (Splunk, Elasticsearch, syslog, webhook), and exposes Prometheus metrics. Use when the user wants a security report, an executive dashboard, or to send findings to a SIEM or monitoring stack.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

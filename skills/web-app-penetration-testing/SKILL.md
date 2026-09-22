@@ -1,7 +1,7 @@
 ---
 name: web-app-penetration-testing
 description: Pentest a web application end to end with Sentari. Tests a live URL, staging site, or local dev server for injection (SQL/NoSQL/OS command/SSTI), SSRF, XXE, client-side attacks (reflected/DOM/stored XSS, prototype pollution, clickjacking, CSRF), and broken access control (IDOR). High-impact issues are confirmed by real effect (payload execution or an out-of-band callback), not guessed. Use when the user wants a dynamic web-app pentest, DAST, or to test a specific web vulnerability class on an authorized target.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
   <img src="https://img.shields.io/badge/tests-182%20passing-brightgreen.svg" alt="Tests">
-  <img src="https://img.shields.io/badge/license-proprietary-lightgrey.svg" alt="License">
+  <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
@@ -465,4 +465,4 @@ Sentari runs real offensive tooling. It refuses to run unless the target is with
 
 ## 📄 License
 
-Proprietary, no-derivatives. See [LICENSE](LICENSE) and [NOTICE](NOTICE). You may use and share verbatim copies. You may not modify it, create derivatives, or redistribute modified versions.
+GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later). See [LICENSE](LICENSE) and [NOTICE](NOTICE). You are free to use, study, modify, and share Sentari. If you distribute a modified version, or run one as a network service, you must make the corresponding source of your modified version available under the same license. Contributions are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md).

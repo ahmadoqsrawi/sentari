@@ -1,7 +1,7 @@
 ---
 name: risk-prioritization
 description: Prioritize what to fix first from a Sentari assessment. Combines CVSS v3.1 base scores, CISA Known Exploited Vulnerabilities correlation, business-impact weighting by asset criticality, and a likelihood-by-impact risk matrix, plus honest prioritization aids (anomaly and error-pattern candidates) that never assert a vulnerability. Use when the user wants to triage findings, rank by risk, or decide remediation order.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

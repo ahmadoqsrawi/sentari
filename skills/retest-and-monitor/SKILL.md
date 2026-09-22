@@ -1,7 +1,7 @@
 ---
 name: retest-and-monitor
 description: Verify that security fixes hold and track a target over time with Sentari. Diffs a fresh assessment against a prior run (fixed, still present, new), schedules recurring retests, and reports trends and cross-asset correlation from stored runs. Use when the user wants to confirm remediation, retest after a fix, set up continuous or scheduled scanning, or see how findings change over time.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

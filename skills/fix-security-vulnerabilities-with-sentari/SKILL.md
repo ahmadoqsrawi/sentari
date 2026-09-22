@@ -1,7 +1,7 @@
 ---
 name: fix-security-vulnerabilities-with-sentari
 description: Turn Sentari's findings into a remediation guide and, optionally, a draft pull request. Sentari is suggest-only, so it writes a Markdown fix guide from the real findings (and grounded AI remediation when enabled) and can open it as a draft PR via the GitHub CLI, but it never edits application code or merges. Use when the user wants remediation guidance, a fix write-up, or a PR from a security scan.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

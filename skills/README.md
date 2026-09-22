@@ -6,8 +6,8 @@ agent (Claude Code, Cursor, and similar) discovers them by `description` and
 loads the instructions when the task matches, so the agent drives Sentari
 correctly instead of guessing flags.
 
-The skills are original content authored for Sentari and licensed under the
-Sentari license (see `../LICENSE`). They follow the open Agent Skills format
+The skills are original content authored for Sentari and licensed under
+AGPL-3.0-or-later (see `../LICENSE`). They follow the open Agent Skills format
 catalogued at [agentskills.io](https://agentskills.io/); credit for the format
 and registry goes there.
 

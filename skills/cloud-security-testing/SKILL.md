@@ -1,7 +1,7 @@
 ---
 name: cloud-security-testing
 description: Discover internet-facing cloud assets and audit cloud account configuration with Sentari. Lists exposed assets in your own AWS, Azure, or GCP account, and runs a Prowler misconfiguration audit mapped to evidence-backed findings. Use when the user wants to check cloud security posture, find exposed cloud assets, or audit an AWS/Azure/GCP/Kubernetes account they control.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

@@ -1,7 +1,7 @@
 ---
 name: penetration-testing-with-sentari
 description: Pentest a web app, API, URL, domain, or host with Sentari, an evidence-grounded, authorized security assessment tool that reports only findings backed by real tool output (no fabricated or guessed results). Runs a phased methodology (OSINT, recon, scanning, SAST, vuln, API, access-control, injection, browser DAST, verification) with optional AI triage and a multi-target graph, and confirms high-impact issues by actual effect (XSS/SSTI execution, SSRF/XXE/command-injection out-of-band callback). Use when the user asks to pentest, security-scan, security-audit, or find vulnerabilities in an app, API, website, or host they are authorized to test.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

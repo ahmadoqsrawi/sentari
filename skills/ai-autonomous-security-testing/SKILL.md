@@ -1,7 +1,7 @@
 ---
 name: ai-autonomous-security-testing
 description: Drive Sentari with an LLM while keeping findings evidence-backed. Grounded AI triage prioritizes and chains real findings, autopilot lets the model choose which phases to run, the agent mode lets the model call tools directly, AI-assisted OSINT proposes subdomains that DNS then confirms, and the graph coordinator synthesizes across targets. Works with many providers (OpenAI, Anthropic, Google, OpenRouter, Ollama, and more). Use when the user wants AI-driven or autonomous security testing.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

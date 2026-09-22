@@ -1,7 +1,7 @@
 ---
 name: find-security-vulnerabilities-in-code
 description: Run static analysis (SAST) over a source tree with Sentari, using semgrep, and map results to evidence-backed findings with CWE/OWASP references. Use when the user wants to scan a repository or codebase for security issues, do a code security review, or add SAST to their workflow.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

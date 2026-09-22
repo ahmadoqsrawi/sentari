@@ -1,7 +1,7 @@
 ---
 name: owasp-top-10-testing
 description: Test an application against the OWASP Top 10 with Sentari and pick the right flags for each category (broken access control, cryptographic failures, injection, insecure design and business logic, security misconfiguration, vulnerable components, auth and session, integrity and deserialization, logging, SSRF). Findings are evidence-backed and tagged with OWASP/CWE/NIST references, and Sentari states honestly which categories it can prove and which need source or human review. Use when the user asks to test against the OWASP Top 10, do OWASP compliance testing, or map a review to OWASP categories.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

@@ -1,7 +1,7 @@
 ---
 name: ci-security-scanning-with-sentari
 description: Add Sentari to a CI/CD pipeline as a security gate. A composite GitHub Action runs an authorized assessment on push or on a schedule, uploads the reports as artifacts, and can fail the build. Use when the user wants continuous security scanning, a CI security gate, scheduled scans, or a GitHub Action for security testing.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari

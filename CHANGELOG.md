@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.16.0] - 2026-09-22
+
+### Changed
+- **License changed to AGPL-3.0-or-later** (was proprietary, no-derivatives). Sentari is now free software: you can use, study, modify, and share it, and a modified version distributed or run as a network service must offer its corresponding source under the same license. Updated `LICENSE`, `NOTICE`, `pyproject.toml`, the README, and every skill's license field, and added `CONTRIBUTING.md` (DCO sign-off).
+
 ## [0.15.0] - 2026-09-22
 
 ### Changed

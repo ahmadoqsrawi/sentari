@@ -1,7 +1,7 @@
 ---
 name: api-security-testing
 description: Test a REST/HTTP API with Sentari using its OpenAPI, Swagger, or Postman spec. Covers JWT weaknesses (alg=none, weak secret, missing expiry, sensitive payload), broken authentication and object-level access (IDOR), missing rate limiting, mass assignment, and injection against the ingested endpoints, with high-impact issues confirmed by real effect. Read-only by default. Use when the user wants to security-test an API, an API spec, or API endpoints they are authorized to test.
-license: Proprietary
+license: AGPL-3.0-or-later
 metadata:
   author: Ahmad
   homepage: https://github.com/ahmadoqsrawi/sentari
