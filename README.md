@@ -71,10 +71,17 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - Off by default; each finding carries the browser observation as evidence
 
 ### 💥 Injection and logic (`--injection`)
-- **SSRF and XXE confirmed out-of-band**: Sentari runs a listener and injects a URL that points back to it; a finding is raised only on a real callback (a working proof)
-- **NoSQL injection** (differential operator injection) and **mass assignment** (privileged fields, gated) as candidates
-- **Race conditions** (`--race-url`): fire concurrent requests and flag multiple successes on a should-be-once action
+- **SSRF, XXE, and OS command injection confirmed out-of-band**: Sentari runs a listener and injects a URL that points back to it; a finding is raised only on a real callback (a working proof)
+- **SSTI** confirmed when a template expression (7*7) is evaluated in the response
+- **NoSQL injection** (differential), **mass assignment** (gated), and **insecure-deserialization** detection (serialized blobs in params/cookies)
+- **Race conditions** (`--race-url`) and **session fixation** (`--session-fixation`)
 - XXE and mass assignment POST data, so they run only outside safe mode
+
+### 🧾 Business logic (`--workflow FILE`)
+- Replays an operator-defined request sequence (with variable capture) and flags steps that succeed when they should fail (workflow/authorization bypass, price/quantity tampering) or return an unexpected status
+
+### 🖳 Interactive shell (`--shell`)
+- Opens a shell inside a disposable Docker container for authorized exploit development
 
 ### 🔓 Broken access control / IDOR (`--access-control`)
 - Requests protected URLs as several supplied identities (`--identity NAME:HEADER:VALUE`) and anonymously
@@ -192,7 +199,8 @@ Each package has one job:
 | `jwt_audit` / `sast` / `proxy` | Offline JWT auditing; semgrep SAST parsing; mitmproxy capture analysis |
 | `cloudaudit` / `pocrunner` / `graph` | Prowler misconfig parsing; sandboxed PoC runtime; multi-agent graph orchestration |
 | `accesscontrol` | Broken-access-control / IDOR by comparing identities |
-| `oob` / `injection` | Out-of-band listener; SSRF/XXE/NoSQLi/mass-assignment/race logic |
+| `oob` / `injection` | Out-of-band listener; SSRF/XXE/cmdi/SSTI/NoSQLi/mass-assignment logic |
+| `deserial` / `sessionfix` / `workflow` | Deserialization detection; session-fixation check; business-logic workflow replay |
 | `autofix` | Remediation guide and optional draft PR (suggest-only) |
 | `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
@@ -241,7 +249,8 @@ pip install ".[postgres]"     # Postgres run store
 | 3 | Vulnerability assessment | `nuclei` templates (with CVSS scoring), gated `sqlmap`, optional OpenVAS/Nexpose |
 | 3 | API security (`--api-tests`) | JWT audit, rate-limit, auth-exposure, methods (GET/OPTIONS only) |
 | 3 | Access control (`--access-control`) | broken-access-control / IDOR by comparing identities |
-| 3 | Injection & logic (`--injection`) | SSRF/XXE (OOB-confirmed), NoSQLi, mass assignment, race |
+| 3 | Injection & logic (`--injection`) | SSRF/XXE/cmdi (OOB-confirmed), SSTI, NoSQLi, mass assignment, deserialization |
+| 3 | Business logic (`--workflow`) | replay an operator-defined workflow spec |
 | 3 | Proxy ingest (`--proxy-ingest`) | analyze captured HTTP traffic (mitmproxy JSONL or HAR) |
 | 3 | Client-side DAST (`--browser`) | reflected/DOM XSS + prototype pollution (confirmed by execution), clickjacking, CSRF |
 | 4 | Verification | read-only confirmation of findings, secrets redacted |
@@ -273,7 +282,10 @@ sentari --list-phases
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
 | `--openvas` / `--nexpose` | Pull results from a configured OpenVAS (`GVM_*`) or Nexpose/InsightVM (`NEXPOSE_*`) instance. |
 | `--openapi SRC` (+ `--openapi-base-url`) | Ingest an OpenAPI/Swagger/Postman spec; its endpoints become scan targets. |
-| `--injection` (+ `--oob-host`, `--race-url`) | SSRF/XXE (OOB-confirmed), NoSQLi, mass assignment, race conditions. |
+| `--injection` (+ `--oob-host`) | SSRF/XXE/cmdi (OOB-confirmed), SSTI, NoSQLi, mass assignment, deserialization. |
+| `--race-url` / `--session-fixation` | Race-condition harness / session-fixation check. |
+| `--workflow FILE` | Replay an operator-defined workflow to test business logic. |
+| `--shell` (+ `--shell-image`) | Interactive shell in a disposable Docker container (exploit dev). |
 | `--access-control` (+ `--identity`, `--ac-url`) | Broken-access-control / IDOR testing by comparing identities. |
 | `--api-tests` / `--jwt TOKEN` | Read-only API-security checks / audit a single JWT offline. |
 | `--sast PATH` (+ `--sast-config`) | Static analysis over a source tree with semgrep. |

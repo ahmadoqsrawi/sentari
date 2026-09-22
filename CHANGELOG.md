@@ -4,6 +4,16 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.12.0] - 2026-09-22
+
+### Added
+- **OS command injection (OOB-confirmed) and SSTI (math-confirmed)** in the injection phase: command injection is proven by a real callback to the listener; SSTI is proven when a template expression (7*7) is evaluated in the response.
+- **Insecure-deserialization detection** (`deserial.py`): flags serialized objects (Java, PHP, Python pickle, Ruby Marshal) carried in URL parameters or cookies. Detection only; it builds no gadget.
+- **Session fixation** (`sessionfix.py`, `--session-fixation`, `--login-data`, `--session-cookie`): checks whether the session id is reissued on login, using the supplied credentials.
+- **Business-logic workflow testing** (`workflow.py`, `phases/workflow_phase.py`, `--workflow FILE`): replays an operator-defined request sequence with variable capture and flags steps that succeed when they should fail (workflow/authorization bypass, price/quantity tampering) or return an unexpected status.
+- **Interactive sandbox shell** (`--shell`, `--shell-image`): opens a shell inside a disposable Docker container for exploit development.
+- **Graph AI coordination**: with `--graph --ai`, the coordinator adds a grounded synthesis (prioritization and attack chains) over all findings across targets.
+
 ## [0.11.0] - 2026-09-22
 
 ### Added

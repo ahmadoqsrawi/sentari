@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.11.0"
+__version__ = "0.12.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -89,6 +89,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Fire concurrent requests at this URL to test for race conditions.")
     p.add_argument("--race-count", type=int, default=20, help="Concurrent requests for --race-url.")
     p.add_argument("--race-post", action="store_true", help="Use POST for --race-url (default GET).")
+    p.add_argument("--session-fixation", metavar="LOGIN_URL",
+                   help="Check whether the session id rotates on login at this URL.")
+    p.add_argument("--login-data", metavar="BODY",
+                   help="Form body for --session-fixation login (e.g. user=x&pass=y).")
+    p.add_argument("--session-cookie", metavar="NAME",
+                   help="Session cookie name for --session-fixation (auto-detected if omitted).")
+    p.add_argument("--workflow", metavar="FILE",
+                   help="Replay an operator-defined workflow spec (JSON) to test business logic.")
     p.add_argument("--access-control", action="store_true",
                    help="Broken-access-control / IDOR testing by comparing identities.")
     p.add_argument("--identity", action="append", default=[], metavar="NAME:HEADER:VALUE",
@@ -100,6 +108,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--jwt", metavar="TOKEN", help="Audit a specific JWT offline.")
     p.add_argument("--browser", action="store_true",
                    help="Client-side DAST: drive a headless browser (needs Playwright).")
+    p.add_argument("--shell", action="store_true",
+                   help="Open an interactive shell inside a disposable Docker container (exploit dev).")
+    p.add_argument("--shell-image", metavar="IMAGE", default="alpine",
+                   help="Docker image for --shell (default alpine; use a toolchain image as needed).")
     p.add_argument("--sandbox", action="store_true",
                    help="Run the gated offensive tools inside a disposable Docker container.")
     p.add_argument("--sandbox-image", metavar="IMAGE",
@@ -220,6 +232,17 @@ def main(argv: list[str] | None = None) -> int:
         serve(runs_dir=args.runs_dir, port=args.port, host=args.host, db=args.db)
         return 0
 
+    if args.shell:
+        import shutil
+        import subprocess
+        if not shutil.which("docker"):
+            print("error: Docker not installed (needed for the sandboxed shell)", file=sys.stderr)
+            return 5
+        print(f"Opening a shell in a disposable {args.shell_image} container "
+              "(host network). For authorized exploit development only.")
+        return subprocess.run(["docker", "run", "--rm", "-it", "--network", "host",
+                               args.shell_image, "/bin/sh"]).returncode
+
     if args.proxy:
         import shutil
         import subprocess
@@ -318,6 +341,12 @@ def main(argv: list[str] | None = None) -> int:
             options["race_url"] = args.race_url
             options["race_count"] = args.race_count
             options["race_post"] = args.race_post
+    if args.workflow:
+        options["workflow_spec"] = args.workflow
+    if args.session_fixation:
+        options["session_fixation"] = {"login_url": args.session_fixation,
+                                       "login_data": args.login_data or "",
+                                       "cookie_name": args.session_cookie}
     if args.access_control:
         options["access_control"] = True
         idents = []
@@ -404,10 +433,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.graph:
         from . import graph as graph_mod
         targets = [args.target] + [t for t in args.graph_target if t]
+        provider = None
+        if args.ai:
+            from .ai import get_provider
+            provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
         try:
-            graphs, correlated = graph_mod.run_graph_targets(
+            graphs, correlated, coordination = graph_mod.run_graph_targets(
                 targets, scope, args.authorized, audit,
-                safe_mode=not args.no_safe_mode, timeout=args.timeout, options=options)
+                safe_mode=not args.no_safe_mode, timeout=args.timeout, options=options,
+                provider=provider)
         except AuthorizationError as e:
             print(f"REFUSED: {e}", file=sys.stderr)
             return 3
@@ -423,6 +457,8 @@ def main(argv: list[str] | None = None) -> int:
             for row in correlated:
                 print(f"[{row['severity']}] {row['finding']} -> "
                       + ", ".join(row["targets"]))
+        if coordination is not None:
+            _print_analysis(coordination)
         payload = {"results": [r.to_dict() for r in results]}
         if args.json:
             Path(args.json).write_text(json.dumps(payload, indent=2, ensure_ascii=False),
