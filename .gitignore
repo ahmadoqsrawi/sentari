@@ -5,3 +5,7 @@ __pycache__/
 sentari-audit.log
 *.json
 !pyproject.json
+
+# deepwiki-rs / Litho cache
+.litho/
+litho.docs/
