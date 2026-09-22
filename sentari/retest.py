@@ -34,15 +34,19 @@ class RetestResult:
     current_count: int
 
 
-def load_baseline(path: str) -> list[dict]:
-    """Read findings from a prior `--json` report (a list of phase dicts)."""
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    # accept both shapes: a bare list of phase dicts, or {"results": [...]}
+def findings_from_payload(data) -> list[dict]:
+    """Extract findings from a run payload (bare list of phase dicts, or
+    {"results": [...]}): used for both file baselines and DB baselines."""
     phases = data["results"] if isinstance(data, dict) else data
     findings: list[dict] = []
-    for phase in phases:
+    for phase in phases or []:
         findings.extend(phase.get("findings", []))
     return findings
+
+
+def load_baseline(path: str) -> list[dict]:
+    """Read findings from a prior `--json` report."""
+    return findings_from_payload(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
 def compare(baseline: list[dict], current: list[Finding]) -> RetestResult:

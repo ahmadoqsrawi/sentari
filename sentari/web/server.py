@@ -17,6 +17,7 @@ import html
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 
 _SEV_RANK = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
 _SEV_COLOR = {"critical": "#b3123b", "high": "#d64541", "medium": "#e08a1e",
@@ -106,7 +107,8 @@ def _run_view(rid: str, run: dict) -> str:
     return _PAGE.format(title=f"Run {rid}", body=body)
 
 
-def make_handler(runs_dir: Path):
+def make_handler(load):
+    """`load` is a zero-arg callable returning {run_id: payload}."""
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # quiet
             pass
@@ -121,7 +123,7 @@ def make_handler(runs_dir: Path):
             self.wfile.write(data)
 
         def do_GET(self):
-            runs = _load_runs(runs_dir)
+            runs = load()
             path = self.path.split("?")[0]
             if path == "/":
                 self._send(200, _dashboard(runs))
@@ -144,11 +146,25 @@ def make_handler(runs_dir: Path):
     return Handler
 
 
-def serve(runs_dir: str, port: int = 8600, host: str = "127.0.0.1") -> None:
-    d = Path(runs_dir)
-    d.mkdir(parents=True, exist_ok=True)
-    httpd = ThreadingHTTPServer((host, port), make_handler(d))
-    print(f"Sentari dashboard (read-only) on http://{host}:{port}  runs-dir={d}")
+def serve(runs_dir: Optional[str] = None, port: int = 8600, host: str = "127.0.0.1",
+          db: Optional[str] = None) -> None:
+    if db:
+        from ..db import RunStore
+        def load():
+            store = RunStore(db)
+            try:
+                return store.all_runs()
+            finally:
+                store.close()
+        source = f"db={db}"
+    else:
+        d = Path(runs_dir or "runs")
+        d.mkdir(parents=True, exist_ok=True)
+        def load():
+            return _load_runs(d)
+        source = f"runs-dir={d}"
+    httpd = ThreadingHTTPServer((host, port), make_handler(load))
+    print(f"Sentari dashboard (read-only) on http://{host}:{port}  {source}")
     print("Ctrl-C to stop.")
     try:
         httpd.serve_forever()

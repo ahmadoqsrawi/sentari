@@ -37,6 +37,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
     p.add_argument("--save-run", metavar="DIR",
                    help="Save this run as <dir>/<timestamp>-<target>.json for the dashboard.")
+    p.add_argument("--db", metavar="DSN",
+                   help="Persist/read runs in a DB: a SQLite file path or a postgres:// URL.")
+    p.add_argument("--retest-latest", action="store_true",
+                   help="Retest against this target's most recent run in --db.")
     p.add_argument("--serve", action="store_true",
                    help="Start the read-only web dashboard instead of scanning.")
     p.add_argument("--port", type=int, default=8600, help="Dashboard port (default 8600).")
@@ -87,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.serve:
         from .web import serve
-        serve(args.runs_dir, args.port)
+        serve(runs_dir=args.runs_dir, port=args.port, db=args.db)
         return 0
 
     if args.list_phases:
@@ -146,16 +150,31 @@ def main(argv: list[str] | None = None) -> int:
         audit.record("ai.triage", target=args.target, provider=analysis.provider,
                      error=analysis.error, dropped_refs=analysis.dropped_references)
 
-    if args.retest:
+    store = None
+    if args.db:
+        from .db import RunStore
+        store = RunStore(args.db)
+
+    if args.retest or args.retest_latest:
         from . import retest as retest_mod
-        try:
-            baseline = retest_mod.load_baseline(args.retest)
-        except (OSError, ValueError) as e:
-            print(f"error: could not read baseline {args.retest!r}: {e}", file=sys.stderr)
-            return 4
+        baseline, label = None, ""
+        if args.retest_latest:
+            if not store:
+                print("error: --retest-latest requires --db", file=sys.stderr)
+                return 4
+            prev = store.latest_for_target(args.target)  # previous run (before this one is saved)
+            baseline = retest_mod.findings_from_payload(prev) if prev else []
+            label = f"latest in db ({'found' if prev else 'none yet'})"
+        else:
+            try:
+                baseline = retest_mod.load_baseline(args.retest)
+                label = args.retest
+            except (OSError, ValueError) as e:
+                print(f"error: could not read baseline {args.retest!r}: {e}", file=sys.stderr)
+                return 4
         current = [f for r in results for f in r.findings]
         rr = retest_mod.compare(baseline, current)
-        print(retest_mod.render(rr, args.retest))
+        print(retest_mod.render(rr, label))
         audit.record("retest", target=args.target, fixed=len(rr.fixed),
                      still=len(rr.still_present), new=len(rr.new))
 
@@ -176,6 +195,11 @@ def main(argv: list[str] | None = None) -> int:
         run_file = d / f"{_dt.now().strftime('%Y%m%d-%H%M%S')}-{slug}.json"
         run_file.write_text(payload_json, encoding="utf-8")
         print(f"Run saved to {run_file} (view with: sentari --serve --runs-dir {args.save_run})")
+
+    if store is not None:
+        rid = store.save_run(args.target, payload)
+        store.close()
+        print(f"Run persisted to db as {rid} (view with: sentari --serve --db {args.db})")
 
     if args.html:
         from .reporting import html as html_report
