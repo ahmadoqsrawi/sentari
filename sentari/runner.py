@@ -60,14 +60,16 @@ class ToolRunner:
         command: list[str],
         tool: Optional[str] = None,
         timeout: Optional[int] = None,
+        sandbox_wrap: bool = True,
     ) -> Evidence:
         """Run a command and capture it as Evidence. Never raises on tool failure -
-        a non-zero exit or timeout is itself recorded as evidence."""
+        a non-zero exit or timeout is itself recorded as evidence. Set
+        sandbox_wrap=False for a command that already brings its own container."""
         tool = tool or command[0]
         timeout = timeout or self.default_timeout
         # In sandbox mode, rewrite the command to run inside a container. The
         # recorded evidence shows the actual command that ran (docker run ...).
-        if self.sandbox is not None:
+        if self.sandbox is not None and sandbox_wrap:
             command = self.sandbox.wrap(command)
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
