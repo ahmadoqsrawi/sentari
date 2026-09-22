@@ -70,7 +70,9 @@ class InjectionPhase(Phase):
         opts = ctx.options
         if not (opts.get("injection") or opts.get("race_url") or opts.get("session_fixation")):
             return
-        timeout = max(ctx.runner.default_timeout, 10)
+        # injection fires many requests, so cap each to a short timeout regardless
+        # of the global --timeout; a WAF/tarpit must not stall the whole phase.
+        timeout = int(opts.get("injection_timeout", 8))
 
         if opts.get("session_fixation"):
             self._session_fixation(ctx, result, opts["session_fixation"], timeout)
@@ -111,8 +113,11 @@ class InjectionPhase(Phase):
     def _ssrf(self, ctx, result, urls, listener, timeout):
         from .. import injection
         tokens = {}
+        # existing params plus the most common SSRF sinks, not all 24 on every URL
         for url in urls:
-            for param in injection.SSRF_PARAMS:
+            existing = list(dict(parse_qsl(urlparse(url).query)))
+            ssrf_params = list(dict.fromkeys(existing + injection.SSRF_PARAMS[:8]))
+            for param in ssrf_params:
                 token = listener.token()
                 target = _with_param(url, param, listener.url(token))
                 _fetch(target, timeout=timeout)
