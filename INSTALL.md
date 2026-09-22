@@ -202,6 +202,128 @@ example `set AZURE_SUBSCRIPTION_ID`) rather than failing silently.
 
 ---
 
+## Integrations and configuration
+
+Each integration below is optional and configured through environment variables
+or flags. If something is not set up, Sentari reports it and skips that part.
+
+### AI providers (`--ai`, `--autopilot`, `--agent`, `--graph --ai`, `--ai-osint`)
+
+Install the extra and set the provider's API key, then select it with
+`--ai-provider` / `--ai-model` (or the `SENTARI_PROVIDER` / `SENTARI_MODEL`
+defaults). See known ids with `sentari --list-models`.
+
+```bash
+pip install ".[ai]"
+export OPENAI_API_KEY="sk-..."
+sentari https://app.example.com --scope app.example.com --authorized --ai --ai-provider openai
+```
+
+| Provider (`--ai-provider`) | API key env var |
+|---|---|
+| openai | `OPENAI_API_KEY` |
+| anthropic | `ANTHROPIC_API_KEY` |
+| google | `GOOGLE_API_KEY` |
+| openrouter | `OPENROUTER_API_KEY` |
+| deepseek | `DEEPSEEK_API_KEY` |
+| groq | `GROQ_API_KEY` |
+| mistral | `MISTRAL_API_KEY` |
+| xai | `XAI_API_KEY` |
+| together | `TOGETHER_API_KEY` |
+| fireworks | `FIREWORKS_API_KEY` |
+| perplexity | `PERPLEXITY_API_KEY` |
+| glm | `GLM_API_KEY` |
+| nvidia | `NVIDIA_API_KEY` |
+| ollama (local) | none; runs at `http://localhost:11434` |
+
+For a self-hosted or OpenAI-compatible gateway, point at it with `--ai-base-url`.
+
+### OSINT and Shodan (`--phases osint`, `--ai-osint`)
+
+Put `subfinder`, `amass`, or `theHarvester` on PATH for subdomain enumeration.
+Shodan host lookups need an API key:
+
+```bash
+export SHODAN_API_KEY="..."
+sentari example.com --scope example.com --authorized --phases osint
+```
+
+### External vulnerability scanners
+
+**OpenVAS / Greenbone** (`--openvas`):
+
+```bash
+pip install ".[openvas]"
+export GVM_HOST=greenbone.example.com GVM_PORT=9390 GVM_USER=admin GVM_PASS=secret
+sentari https://app.example.com --scope app.example.com --authorized --openvas
+```
+
+**Nexpose / InsightVM** (`--nexpose`, uses the REST API, no extra needed):
+
+```bash
+export NEXPOSE_HOST=insightvm.example.com NEXPOSE_PORT=3780 NEXPOSE_USER=admin NEXPOSE_PASS=secret
+# self-signed console certs are accepted by default; set NEXPOSE_VERIFY_TLS=1 to require a valid cert
+sentari https://app.example.com --scope app.example.com --authorized --nexpose
+```
+
+### SIEM export (`--siem-url`, `--siem-type`)
+
+Ship findings to a SIEM. The token can be passed with `--siem-token` or the
+`SENTARI_SIEM_TOKEN` env var.
+
+```bash
+# Splunk HTTP Event Collector
+sentari URL --scope HOST --authorized --siem-type splunk --siem-url https://splunk.example.com:8088 --siem-token "$HEC_TOKEN"
+# Elasticsearch
+sentari URL --scope HOST --authorized --siem-type elasticsearch --siem-url https://es.example.com:9200/sentari/_doc
+# syslog (host:port)
+sentari URL --scope HOST --authorized --siem-type syslog --siem-url syslog.example.com:514
+# generic webhook
+sentari URL --scope HOST --authorized --siem-type webhook --siem-url https://hooks.example.com/ingest
+```
+
+### Distributed runs and scheduled retests (Celery)
+
+```bash
+pip install ".[distributed]"
+export SENTARI_BROKER_URL="redis://localhost:6379/0"     # or REDIS_URL
+export SENTARI_RESULT_BACKEND="redis://localhost:6379/1" # optional
+celery -A sentari.tasks worker            # start a worker
+sentari URL --scope HOST --authorized --enqueue --db sentari.db   # dispatch a scan
+```
+
+Scheduled retests run through Celery beat, configured with environment variables:
+
+```bash
+export SENTARI_SCHEDULE_TARGET="https://app.example.com"
+export SENTARI_SCHEDULE_SCOPE="app.example.com"
+export SENTARI_SCHEDULE_DB="postgres://user:pass@localhost/sentari"
+export SENTARI_SCHEDULE_CRON="0 3 * * *"   # daily at 03:00
+celery -A sentari.tasks beat
+```
+
+Or bring up the whole stack (app, worker, beat, Redis, Postgres, Prometheus,
+Grafana) with `docker-compose up -d` (needs `POSTGRES_PASSWORD` and
+`REDIS_PASSWORD` in a `.env` file).
+
+### Database (SQLite or Postgres)
+
+```bash
+sentari URL --scope HOST --authorized --db sentari.db                 # SQLite (default, no extra)
+pip install ".[postgres]"
+sentari URL --scope HOST --authorized --db "postgres://user:pass@localhost/sentari"
+```
+
+### Dashboard and metrics
+
+```bash
+sentari --serve --db sentari.db          # read-only dashboard on http://127.0.0.1:8600
+# Prometheus metrics are exposed at /metrics on the dashboard; a Grafana
+# dashboard ships under deploy/grafana/.
+```
+
+---
+
 ## "I just want to do X" quick picks
 
 | Goal | Install | Run |
