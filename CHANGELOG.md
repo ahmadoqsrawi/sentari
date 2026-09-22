@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.14.0] - 2026-09-22
+
+### Added
+- **AI code-fix patches, applied only by explicit user action** (`patch.py`, `--suggest-patches`, `--patch-out`, `--apply-fixes`, `--apply-confirm`): for findings that map to a source location (for example from `--sast`), Sentari asks the AI for a minimal unified diff, validates it applies with `git apply --check`, and writes it to a patch file for the user to review and apply. `--apply-fixes` (with the exact `--apply-confirm` string) writes the validated patches into the working tree uncommitted, for review with `git diff`. It never commits or merges, and it never edits code without the confirmation. A path-traversal guard keeps proposed edits inside the repo.
+
 ## [0.13.0] - 2026-09-22
 
 ### Added

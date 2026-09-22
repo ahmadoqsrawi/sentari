@@ -150,6 +150,7 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - **Model catalog**: `--list-models` shows the known models per provider; any provider-specific id also works
 - **GitHub Action**: a composite `action.yml` runs a Sentari assessment in CI with an authorization gate; see `examples/github-action-usage.yml`
 - **Remediation as a draft PR**: `--autofix` writes a Markdown fix guide from the findings; `--autofix-pr` opens it as a draft PR (suggest-only, never edits code)
+- **AI code-fix patches (human-applied)**: `--suggest-patches` produces validated unified diffs for source-mapped findings and writes them to a patch file; `--apply-fixes` (with `--apply-confirm`) applies them into the working tree uncommitted for review. Sentari never commits or merges
 - **Cloud asset discovery**: `--cloud aws` (also azure/gcp) lists internet-facing assets in your own account so you can bring them into scope. Enumerate only, never scanned automatically
 - **Scheduled retests**: a Celery beat schedule (`SENTARI_SCHEDULE_*`) reruns a target on a cron and reports the delta vs the previous run
 - **CVSS scoring**: CVSS v3.1 base scores on nuclei findings that carry a vector
@@ -203,7 +204,7 @@ Each package has one job:
 | `oob` / `injection` | Out-of-band listener; SSRF/XXE/cmdi/SSTI/NoSQLi/mass-assignment logic |
 | `deserial` / `sessionfix` / `workflow` | Deserialization detection; session-fixation check; business-logic workflow replay |
 | `tamper` | Request tamper/replay + response diff; parameter fuzzing |
-| `autofix` | Remediation guide and optional draft PR (suggest-only) |
+| `autofix` / `patch` | Remediation guide and draft PR; AI code-fix diffs applied only by explicit user action |
 | `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
 | `parsers/` | Tool-output parsers (for example, `nmap` XML) |
@@ -300,6 +301,8 @@ sentari --list-phases
 | `--browser` | Client-side DAST with a headless browser (needs Playwright). |
 | `--sandbox` (+ `--sandbox-image`) | Run the gated offensive tools inside a disposable Docker container. |
 | `--autofix FILE` / `--autofix-pr` (+ `--autofix-repo`) | Write a remediation guide; optionally open it as a draft PR. |
+| `--suggest-patches` (+ `--patch-out`) | AI-proposed code-fix diffs, validated and written to a patch file (not applied). |
+| `--apply-fixes` (+ `--apply-confirm`) | Apply the validated patches into the working tree, uncommitted, for review. |
 | `--ai-osint` | AI proposes subdomain labels; DNS confirms them (runs locally). |
 | `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized non-production only. |
 | `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`, `--privesc`) | Gated post-exploitation (lateral movement, AD collection, SSH privesc enumeration), authorized non-production only. |

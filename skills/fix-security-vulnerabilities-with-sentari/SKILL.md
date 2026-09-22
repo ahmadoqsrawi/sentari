@@ -33,9 +33,30 @@ sentari https://app.example.com --scope app.example.com --authorized \
 
 Requirements: the repo is a git repository with a GitHub remote, and the GitHub CLI (`gh`) is installed and authenticated (`gh auth login`). Sentari creates a branch, writes `SECURITY_FIXES.md`, commits, pushes, and opens a **draft** PR. It touches only that file.
 
-## 4. Review and apply the fix
+## 4. Propose concrete code patches (AI, human-applied)
 
-A human reads the guide and makes the actual code change. Fix the root cause, not just the symptom the finding points at.
+For findings that map to a source location (for example from `--sast`), Sentari can ask the AI for a minimal unified diff, validate that it applies, and write it to a patch file. It does not touch your code:
+
+```bash
+sentari https://app.example.com --scope app.example.com --authorized \
+  --sast ./repo --suggest-patches --autofix-repo ./repo --patch-out SECURITY_FIXES.patch
+```
+
+Review the diffs, then apply them yourself: `git -C ./repo apply SECURITY_FIXES.patch`.
+
+To have Sentari apply the validated patches into the working tree for you (uncommitted, so you review with `git diff`), opt in explicitly:
+
+```bash
+sentari https://app.example.com --scope app.example.com --authorized \
+  --sast ./repo --suggest-patches --apply-fixes --autofix-repo ./repo \
+  --apply-confirm "APPLY THESE PATCHES TO MY WORKING TREE"
+```
+
+Even then it only writes to the working tree. It never commits or merges; you review the diff and commit yourself. Fix the root cause, not just the symptom.
+
+## 4b. Review and apply manually
+
+If you skip the patch step, a human reads the guide and makes the code change directly.
 
 ## 5. Verify the fix landed
 

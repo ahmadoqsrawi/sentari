@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -134,7 +134,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--autofix-pr", action="store_true",
                    help="Open the remediation guide as a DRAFT pull request (needs gh + a repo).")
     p.add_argument("--autofix-repo", metavar="DIR", default=".",
-                   help="Git repository for --autofix-pr (default: current directory).")
+                   help="Git repository for --autofix-pr / --suggest-patches (default: current directory).")
+    p.add_argument("--suggest-patches", action="store_true",
+                   help="Ask the AI for concrete code-fix diffs (validated, written to a patch file; not applied).")
+    p.add_argument("--patch-out", metavar="FILE", default="SECURITY_FIXES.patch",
+                   help="Where to write proposed patches (default SECURITY_FIXES.patch).")
+    p.add_argument("--apply-fixes", action="store_true",
+                   help="Apply the proposed patches into the working tree (uncommitted); needs --apply-confirm.")
+    p.add_argument("--apply-confirm", metavar="TEXT",
+                   help="Exact acknowledgement string required to apply patches to your code.")
     p.add_argument("--wordlist", help="Wordlist path for gobuster content discovery (Phase 2).")
     p.add_argument("--sqlmap-url", help="Explicit URL to test with sqlmap (Phase 3, gated).")
     p.add_argument("--dry-run", action="store_true", help="Show what would run; execute nothing.")
@@ -702,6 +710,31 @@ def main(argv: list[str] | None = None) -> int:
         if args.autofix_pr:
             ok, msg = autofix.open_draft_pr(report_md, args.autofix_repo, args.target)
             print(f"Autofix PR: {msg}")
+
+    if args.suggest_patches or args.apply_fixes:
+        from . import patch as patch_mod
+        from .ai import get_provider
+        provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
+        patches = patch_mod.propose(results, args.autofix_repo, provider)
+        if not patches:
+            print("No source-mapped findings produced a valid patch "
+                  "(patches need findings with a file:line location, e.g. from --sast).")
+            return 0
+        Path(args.patch_out).write_text(patch_mod.combined_patch(patches), encoding="utf-8")
+        print(f"\n{len(patches)} proposed patch(es) written to {args.patch_out}:")
+        for p in patches:
+            print(f"  - {p['file']}: {p['finding']}")
+        print(f"Review them, then apply with: git -C {args.autofix_repo} apply {args.patch_out}")
+        if args.apply_fixes:
+            if args.apply_confirm != patch_mod.APPLY_CONFIRM:
+                print(f'\nerror: --apply-fixes requires --apply-confirm "{patch_mod.APPLY_CONFIRM}"',
+                      file=sys.stderr)
+                return 6
+            applied, failed = patch_mod.apply(patches, args.autofix_repo)
+            print(f"\nApplied to the working tree (uncommitted): {len(applied)} file(s)."
+                  + (f" Failed: {failed}" if failed else ""))
+            print(f"Review with: git -C {args.autofix_repo} diff  |  then commit yourself, "
+                  "and re-test to confirm the fix (see the retest skill).")
     return 0
 
 
