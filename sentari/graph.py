@@ -65,11 +65,13 @@ def run_graph(target: str, scope: Scope, authorized: bool, audit: AuditLog, *,
 
 def run_graph_targets(targets: list[str], scope: Scope, authorized: bool, audit: AuditLog, *,
                       safe_mode: bool = True, timeout: int = 120,
-                      options: Optional[dict] = None, workers: int = 4
-                      ) -> tuple[list[GraphResult], list[dict]]:
+                      options: Optional[dict] = None, workers: int = 4, provider=None
+                      ) -> tuple[list[GraphResult], list[dict], object]:
     """Run the graph across several targets in parallel; correlate the findings.
 
-    Returns (per-target graph results, cross-asset correlation rows)."""
+    Returns (per-target graph results, cross-asset correlation rows, coordination).
+    When `provider` is given, the coordinator adds a grounded AI synthesis
+    (prioritization and attack chains) over all findings; otherwise it is None."""
     graphs: list[GraphResult] = []
     with ThreadPoolExecutor(max_workers=min(workers, max(len(targets), 1))) as pool:
         futs = {pool.submit(_safe_graph, t, scope, authorized, audit,
@@ -81,7 +83,13 @@ def run_graph_targets(targets: list[str], scope: Scope, authorized: bool, audit:
     from . import correlation
     runs = {g.target: {"results": [r.to_dict() for r in g.results]} for g in graphs}
     correlated = correlation.correlate(runs)
-    return graphs, correlated
+
+    coordination = None
+    if provider is not None:
+        from .ai.analyst import GroundedAnalyst
+        all_results = [r for g in graphs for r in g.results]
+        coordination = GroundedAnalyst(provider).analyze(all_results)
+    return graphs, correlated, coordination
 
 
 def _safe_graph(target, scope, authorized, audit, safe_mode, timeout, options) -> GraphResult:

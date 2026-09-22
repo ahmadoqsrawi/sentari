@@ -20,15 +20,16 @@ class TestGraph(unittest.TestCase):
 
     def test_unauthorized_targets_error_gracefully(self):
         # authorization fails before any network work, so this is offline & fast.
-        graphs, correlated = graph.run_graph_targets(
+        graphs, correlated, coordination = graph.run_graph_targets(
             ["example.com", "example.org"], Scope.from_items([]), False, self._audit(),
             timeout=2)
         self.assertEqual(len(graphs), 2)
         self.assertTrue(all(g.error for g in graphs))
         self.assertEqual(correlated, [])
+        self.assertIsNone(coordination)  # no provider given
 
     def test_results_sorted_by_target(self):
-        graphs, _ = graph.run_graph_targets(
+        graphs, _, _ = graph.run_graph_targets(
             ["b.example", "a.example"], Scope.from_items([]), False, self._audit(), timeout=2)
         self.assertEqual([g.target for g in graphs], ["a.example", "b.example"])
 
