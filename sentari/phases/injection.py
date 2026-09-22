@@ -39,6 +39,19 @@ def _fetch(url, method="GET", headers=None, data=None, timeout=10):
         return 0, ""
 
 
+def _set_cookies(url, timeout=10) -> list[str]:
+    """Return the Set-Cookie header values from a GET of url (best-effort)."""
+    sslctx = ssl.create_default_context()
+    sslctx.check_hostname = False
+    sslctx.verify_mode = ssl.CERT_NONE
+    req = urllib.request.Request(url, headers={"User-Agent": "Sentari/0.11"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=sslctx) as resp:
+            return resp.headers.get_all("Set-Cookie") or []
+    except Exception:
+        return []
+
+
 def _with_param(url, key, value):
     p = urlparse(url)
     q = dict(parse_qsl(p.query))
@@ -52,24 +65,33 @@ class InjectionPhase(Phase):
     description = "SSRF/XXE (OOB-confirmed), NoSQLi, mass assignment, race (--injection)"
 
     def execute(self, ctx: PhaseContext, result: PhaseResult) -> None:
-        if not ctx.options.get("injection"):
+        opts = ctx.options
+        if not (opts.get("injection") or opts.get("race_url") or opts.get("session_fixation")):
             return
-        urls = self._urls(ctx)[:25]
         timeout = max(ctx.runner.default_timeout, 10)
-        from .. import injection, oob
 
-        oob_host = ctx.options.get("oob_host", "127.0.0.1")
+        if opts.get("session_fixation"):
+            self._session_fixation(ctx, result, opts["session_fixation"], timeout)
+        if opts.get("race_url"):
+            self._race(ctx, result, opts["race_url"],
+                       int(opts.get("race_count", 20)), timeout)
+        if not opts.get("injection"):
+            return
+
+        urls = self._urls(ctx)[:25]
+        from .. import oob
+        oob_host = opts.get("oob_host", "127.0.0.1")
         with oob.OOBListener(host=oob_host) as listener:
             self._ssrf(ctx, result, urls, listener, timeout)
+            self._cmdi(ctx, result, urls, listener, timeout)
             if not ctx.safe_mode:
                 self._xxe(ctx, result, urls, listener, timeout)
 
+        self._ssti(ctx, result, urls, timeout)
         self._nosqli(ctx, result, urls, timeout)
+        self._deserial(ctx, result, urls, timeout)
         if not ctx.safe_mode:
             self._mass_assignment(ctx, result, urls, timeout)
-        if ctx.options.get("race_url"):
-            self._race(ctx, result, ctx.options["race_url"],
-                       int(ctx.options.get("race_count", 20)), timeout)
 
     def _urls(self, ctx):
         urls = list(ctx.shared.get("api_endpoints", []))
@@ -126,6 +148,75 @@ class InjectionPhase(Phase):
                     recommendation="Disable external entity resolution in the XML parser.",
                     metadata={"xxe": True}))
 
+    # --- Command injection: inject shell payloads; confirm by callback ---
+    def _cmdi(self, ctx, result, urls, listener, timeout):
+        from .. import injection
+        for url in urls:
+            existing = list(dict(parse_qsl(urlparse(url).query)))
+            params = injection.candidate_params(existing)
+            token_map = {}
+            for param in params:
+                token = listener.token()
+                for payload in injection.cmdi_payloads(listener.url(token)):
+                    _fetch(_with_param(url, param, payload), timeout=timeout)
+                token_map[token] = param
+            time.sleep(2)
+            for token, param in token_map.items():
+                if listener.hit(token):
+                    ev = ctx.runner.record_internal(
+                        ["cmdi-oob", url, param], 0,
+                        f"Command injection callback via '{param}': {listener.hits(token)}")
+                    result.findings.append(Finding(
+                        title="OS command injection confirmed (out-of-band callback)",
+                        severity=Severity.CRITICAL,
+                        description=f"A shell payload in '{param}' on {url} made the server call "
+                                    "back to our listener. This is a working command-injection proof.",
+                        evidence_ids=[ev.id], target=ctx.target, phase=self.name, location=url,
+                        recommendation="Never pass user input to a shell; use argument arrays and allowlists.",
+                        metadata={"param": param, "cmdi": True}))
+                    break
+
+    # --- SSTI: template math (7*7) evaluated in the response ---
+    def _ssti(self, ctx, result, urls, timeout):
+        from .. import injection
+        for url in urls:
+            existing = list(dict(parse_qsl(urlparse(url).query)))
+            for param in injection.candidate_params(existing):
+                marker = "ssti" + str(abs(hash((url, param))) % 100000)
+                hit = False
+                for payload in injection.ssti_payloads(marker):
+                    status, body = _fetch(_with_param(url, param, payload), timeout=timeout)
+                    if marker + "49" in body:
+                        hit = True
+                        ev = ctx.runner.record_internal(
+                            ["ssti", url, param], 0,
+                            f"payload {payload!r} -> response contained {marker}49 (7*7 evaluated)")
+                        result.findings.append(Finding(
+                            title="Server-side template injection confirmed", severity=Severity.HIGH,
+                            description=f"A template expression in '{param}' on {url} was evaluated "
+                                        f"(7*7 became 49). Working SSTI proof.",
+                            evidence_ids=[ev.id], target=ctx.target, phase=self.name, location=url,
+                            recommendation="Do not render user input as a template; sandbox the engine.",
+                            metadata={"param": param, "ssti": True}))
+                        break
+                if hit:
+                    break
+
+    # --- Insecure deserialization: serialized blobs in client-controllable inputs ---
+    def _deserial(self, ctx, result, urls, timeout):
+        from .. import deserial
+        for url in urls:
+            issues = deserial.scan(url, {})  # serialized blob in a URL parameter
+            issues += deserial.scan_setcookie(url, _set_cookies(url, timeout))  # or in a cookie
+            for iss in issues:
+                ev = ctx.runner.record_internal(["deserial", url], 0,
+                                                f"{iss['detail']} ({iss['where']})")
+                result.findings.append(Finding(
+                    title="Serialized object in client-controllable input", severity=Severity.MEDIUM,
+                    description=iss["detail"] + " Confirm the app does not deserialize it unsafely.",
+                    evidence_ids=[ev.id], target=ctx.target, phase=self.name, location=url,
+                    metadata={"candidate": "insecure deserialization", "format": iss["format"]}))
+
     # --- NoSQLi: differential operator injection on existing params ---
     def _nosqli(self, ctx, result, urls, timeout):
         from .. import injection
@@ -169,6 +260,22 @@ class InjectionPhase(Phase):
                                 f"reflects {', '.join(echoed)}. Confirm these are not bound.",
                     evidence_ids=[ev.id], target=ctx.target, phase=self.name, location=url,
                     metadata={"candidate": "mass assignment", "fields": echoed}))
+
+    # --- session fixation ---
+    def _session_fixation(self, ctx, result, cfg, timeout):
+        from .. import sessionfix
+        issue, ev_text = sessionfix.check(
+            cfg["login_url"], cfg.get("login_data", ""), cfg.get("cookie_name"), timeout)
+        ev = ctx.runner.record_internal(["session-fixation", cfg["login_url"]], 0, ev_text)
+        if issue:
+            result.findings.append(Finding(
+                title=issue["issue"], severity=Severity.HIGH, description=issue["detail"],
+                evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+                location=cfg["login_url"],
+                recommendation="Regenerate the session id on authentication and privilege change.",
+                metadata={"session_fixation": True}))
+        else:
+            result.notes.append(f"Session fixation: {ev_text}")
 
     # --- race condition harness ---
     def _race(self, ctx, result, url, count, timeout):
