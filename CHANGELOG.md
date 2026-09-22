@@ -4,6 +4,21 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.4.0] - 2026-09-22
+
+### Added
+- **OSINT phase** (`phases/osint.py`, phase 0): passive subdomain enumeration (subfinder, amass passive, theHarvester) and Shodan host lookup; all optional and graceful; assets recorded as info findings, never auto-scanned.
+- **httpx / naabu**: recon uses naabu for port discovery and httpx for web fingerprint when installed, with the built-in probes as fallback.
+- **CVSS v3.1 scoring** (`cvss.py`): base scores from a vector, attached to nuclei findings with a vector.
+- **XML and PDF export** (`reporting/xml.py`, `reporting/pdf.py`): `--xml`, `--pdf` (PDF via optional reportlab).
+- **Cloud asset discovery** (`cloud_assets.py`, `--cloud aws|azure|gcp`): list internet-facing assets from your own account; boto3 for AWS, Azure/GCP graceful; enumerate only.
+- **Scheduled retests**: Celery beat schedule from `SENTARI_SCHEDULE_*` plus a `scheduled_retest` task reporting the delta vs the previous run.
+- **Heuristic candidate flagging** (`heuristics.py`): tags error/stack-trace patterns in evidence as candidates for manual review. Never a vulnerability or zero-day claim; creates no findings. `--no-heuristics` to disable.
+- **Gated exploitation** (`phases/exploit.py`, `--exploit`): runs operator-named Metasploit modules and a bounded, redacted exfil-simulation. Off by default; requires `--no-safe-mode`, `--exploit`, and an exact confirmation string; scope enforced; findings evidence-backed. Authorized, non-production targets only.
+
+### Fixed
+- CLI report options now cover HTML/JSON/XML/PDF uniformly.
+
 ## [0.3.1] - 2026-09-22
 
 ### Fixed

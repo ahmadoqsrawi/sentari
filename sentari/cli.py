@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +28,14 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--list-phases", action="store_true", help="List available phases and exit.")
     p.add_argument("--no-safe-mode", action="store_true",
                    help="Allow more intrusive checks (default: safe mode on).")
+    p.add_argument("--exploit", action="store_true",
+                   help="Enable the gated exploitation phase (authorized non-production only).")
+    p.add_argument("--exploit-module", action="append", default=[], metavar="MSF_MODULE",
+                   help="Metasploit module to run (repeatable). Required for exploitation.")
+    p.add_argument("--exploit-confirm", metavar="TEXT",
+                   help="Exact acknowledgement string required to enable exploitation.")
+    p.add_argument("--exfil-sim", action="store_true",
+                   help="Bounded, redacted proof-of-impact read of confirmed exposures.")
     p.add_argument("--wordlist", help="Wordlist path for gobuster content discovery (Phase 2).")
     p.add_argument("--sqlmap-url", help="Explicit URL to test with sqlmap (Phase 3, gated).")
     p.add_argument("--dry-run", action="store_true", help="Show what would run; execute nothing.")
@@ -54,6 +62,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Compare this run against a prior --json baseline (fixed/still/new).")
     p.add_argument("--no-anomaly", action="store_true",
                    help="Do not flag unusual findings for manual review.")
+    p.add_argument("--no-heuristics", action="store_true",
+                   help="Do not flag error/leak patterns as candidates for manual review.")
     p.add_argument("--no-compliance", action="store_true",
                    help="Do not tag findings with OWASP/CWE/NIST references.")
     p.add_argument("--autopilot", action="store_true",
@@ -154,6 +164,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.sqlmap_url:
         options["sqlmap_url"] = args.sqlmap_url
 
+    if args.exploit:
+        from .phases.exploit import CONFIRM_STRING
+        if not args.no_safe_mode:
+            print("error: --exploit requires --no-safe-mode", file=sys.stderr)
+            return 6
+        if args.exploit_confirm != CONFIRM_STRING:
+            print(f'error: --exploit requires --exploit-confirm "{CONFIRM_STRING}"',
+                  file=sys.stderr)
+            return 6
+        print("!! EXPLOITATION ENABLED: authorized, non-production targets only. !!",
+              file=sys.stderr)
+        options["exploit"] = {"modules": args.exploit_module, "exfil_sim": args.exfil_sim}
+
     if args.enqueue:
         from .tasks import HAVE_CELERY, run_assessment_task
         if not HAVE_CELERY:
@@ -220,7 +243,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.target, scope, args.authorized, audit,
                 safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
                 dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
-                apply_anomaly=not args.no_anomaly,
+                apply_anomaly=not args.no_anomaly, apply_heuristics=not args.no_heuristics,
             )
     except AuthorizationError as e:
         print(f"REFUSED: {e}", file=sys.stderr)

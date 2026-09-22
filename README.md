@@ -102,7 +102,13 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - **SIEM export**: ship findings and a run summary to Splunk (HEC), Elasticsearch, syslog, or a generic webhook
 - **Prometheus metrics**: a `/metrics` endpoint on the dashboard, plus a Grafana dashboard under `deploy/grafana/`
 - **Model catalog**: `--list-models` shows the known models per provider; any provider-specific id also works
-- **Anomaly flagging**: marks findings whose evidence is unusual for the target as "worth manual review". It is a prioritization aid, not a detector, and never claims a vulnerability
+- **Cloud asset discovery**: `--cloud aws` (also azure/gcp) lists internet-facing assets in your own account so you can bring them into scope. Enumerate only, never scanned automatically
+- **Scheduled retests**: a Celery beat schedule (`SENTARI_SCHEDULE_*`) reruns a target on a cron and reports the delta vs the previous run
+- **CVSS scoring**: CVSS v3.1 base scores on nuclei findings that carry a vector
+
+### 🔎 Prioritization aids (never vulnerability claims)
+- **Anomaly flagging**: marks findings whose evidence is unusual for the target as "worth manual review"
+- **Heuristic candidates**: flags error/stack-trace patterns in evidence as candidates for manual review. This is the honest form of "novel issue" flagging; it never asserts a vulnerability or a zero-day, and creates no findings
 
 ## 🏗️ Architecture
 
@@ -173,12 +179,15 @@ pip install ".[postgres]"     # Postgres run store
 
 | # | Phase | What it does |
 |---|-------|--------------|
-| 1 | Reconnaissance | DNS, port and service discovery, web fingerprint |
+| 0 | OSINT | passive subdomain enumeration (subfinder/amass/theHarvester) + Shodan lookup |
+| 1 | Reconnaissance | DNS, port and service discovery (built-in / `naabu` / `nmap`), web fingerprint (built-in / `httpx`) |
 | 2 | Scanning | security headers, TLS checks, version disclosure, content discovery |
-| 3 | Vulnerability assessment | `nuclei` templates, gated `sqlmap` |
+| 3 | Vulnerability assessment | `nuclei` templates (with CVSS scoring), gated `sqlmap` |
 | 4 | Verification | read-only confirmation of findings, secrets redacted |
-| 5 | Reporting | evidence-linked HTML and JSON |
+| 5 | Reporting | evidence-linked HTML, JSON, XML, PDF |
 | 6 | Retest | diff a fresh scan against a prior run |
+
+A gated **exploitation** phase (Metasploit modules + bounded exfil-simulation) exists but is off by default. It runs only with `--no-safe-mode --exploit` and an exact confirmation string, and it is for authorized, non-production targets only.
 
 ```bash
 sentari --list-phases
@@ -192,7 +201,9 @@ sentari --list-phases
 | `--authorized` | Attest you have permission to test the target. Required. |
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |
 | `--no-safe-mode` | Allow the gated, read-only verification checks. |
-| `--html FILE` / `--json FILE` | Write the report to a file. |
+| `--html` / `--json` / `--xml` / `--pdf` FILE | Write the report in that format (PDF needs reportlab). |
+| `--cloud {aws,azure,gcp}` | List internet-facing assets in your cloud account and exit. |
+| `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized non-production only. |
 | `--save-run DIR` | Save the run for the dashboard. |
 | `--db DSN` | Persist runs to SQLite (a path) or Postgres (a `postgres://` URL). |
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |

@@ -27,6 +27,7 @@ def run_assessment(
     options: Optional[dict] = None,
     apply_compliance: bool = True,
     apply_anomaly: bool = True,
+    apply_heuristics: bool = True,
 ) -> list[PhaseResult]:
     """Authorize the target, run the selected phases in order, tag compliance.
     Raises AuthorizationError if the target is not authorized/in scope."""
@@ -46,12 +47,22 @@ def run_assessment(
                      findings=len(result.findings), error=result.error)
         results.append(result)
 
+    # Gated exploitation runs only with safe mode off and an explicit, confirmed
+    # request. It is not in the default phase list, so it never runs by accident.
+    if not safe_mode and (options or {}).get("exploit"):
+        from .phases.exploit import ExploitPhase
+        ctx.runner = ToolRunner(timeout, dry_run)
+        results.append(ExploitPhase().run(ctx))
+
     if apply_compliance:
         from . import compliance
         compliance.apply(results)
     if apply_anomaly:
         from . import anomaly
         anomaly.apply(results)
+    if apply_heuristics:
+        from . import heuristics
+        heuristics.apply(results)
     return results
 
 

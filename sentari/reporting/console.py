@@ -55,6 +55,12 @@ def render(results: list[PhaseResult]) -> str:
         anomaly = (f.metadata or {}).get("anomaly")
         if anomaly:
             lines.append(f"        anomaly: {anomaly}")
+        candidate = (f.metadata or {}).get("candidate")
+        if candidate:
+            lines.append(f"        candidate: {candidate}")
+        cvss = (f.metadata or {}).get("cvss") or {}
+        if cvss.get("score") is not None:
+            lines.append(f"        cvss: {cvss['score']} {cvss.get('vector','')}".rstrip())
         lines.append(f"        evidence: {', '.join(f.evidence_ids)}")
 
     lines.append("\n" + "-" * 70)
