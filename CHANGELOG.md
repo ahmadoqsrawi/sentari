@@ -14,26 +14,34 @@ rule: **a finding may only exist if backed by real command output.**
   a `Finding` cannot be constructed without evidence. `ToolRunner` captures every
   external tool *and* built-in probe as evidence (command, output, exit, timing).
 - **Authorization**: real scope allowlist (host + CIDR with DNS resolution),
-  explicit `--authorized` attestation, and an append-only audit log. Refuses to
-  run out-of-scope or unattested.
-- **Phase 1: Reconnaissance**: DNS resolution, port/service discovery (built-in
-  TCP connect scan, enriched by `nmap -sV` when present), web fingerprint.
-- **Phase 2: Scanning & Enumeration**: HTTP security-header analysis, TLS
-  inspection (incl. real legacy TLS 1.0/1.1 handshake tests), technology/version
-  disclosure, content discovery (`gobuster`/`ffuf` or a built-in sensitive-path
-  probe).
-- **Phase 3: Vulnerability Assessment**: `nuclei` template integration; gated
-  `sqlmap` (runs only with `--sqlmap-url` or `--no-safe-mode`).
-- **Phase 4: Verification**: read-only, non-destructive confirmation of
-  findings; gated behind `--no-safe-mode`; retrieved secrets are redacted.
-- **Phase 5: Reporting**: self-contained, offline HTML report (evidence linked
-  per finding) plus JSON output.
-- **Phase 6: Retest**: diff a fresh scan against a prior `--json` baseline into
-  fixed / still-present / new.
-- **CLI**: `sentari` / `python -m sentari` with `--scope`, `--authorized`,
-  `--phases`, `--safe-mode`, `--html`, `--json`, `--retest`, `--dry-run`.
+  explicit `--authorized` attestation, and an append-only audit log.
+- **Phases**: 1 Reconnaissance, 2 Scanning & Enumeration, 3 Vulnerability
+  Assessment (`nuclei` + gated `sqlmap`), 4 Verification (read-only, gated,
+  secrets redacted), 5 Reporting, 6 Retest.
+- **Grounded AI triage**: multi-provider (`sentari/ai/`: OpenAI, OpenRouter,
+  Anthropic, Google, Ollama); prioritizes / correlates / remediates over real
+  findings only, with a guard that drops any invented references.
+- **Compliance mapping**: OWASP Top 10 (2021), CWE, NIST 800-53 tags on
+  findings (console / HTML / JSON).
+- **Reporting**: self-contained evidence-linked HTML plus JSON.
+- **Retest**: diff against a prior run: `--retest FILE` or `--retest-latest`
+  (from `--db`).
+- **Persistence**: `sentari/db/`: SQLite by default, optional Postgres.
+- **Web dashboard + REST API**: `sentari/web/`: read-only, localhost by default,
+  standard-library `http.server`; `--serve`, `/api/runs`, `/run/<id>`.
+- **Parallelism**: stdlib thread pool for I/O-bound probes (port scan, content
+  discovery).
+- **Distributed**: optional Celery task queue (`sentari/tasks/`, `--enqueue`);
+  `Dockerfile`, `docker-compose.yml`, and `deploy/k8s/` manifests.
+- **Engine**: one shared `run_assessment` code path for CLI and workers.
+- **CLI**: `--scope`, `--authorized`, `--phases`, `--no-safe-mode`, `--html`,
+  `--json`, `--save-run`, `--db`, `--retest`, `--retest-latest`, `--ai`
+  (`--ai-provider`/`--ai-model`/`--ai-base-url`), `--no-compliance`, `--enqueue`,
+  `--serve`/`--host`/`--port`/`--runs-dir`, `--dry-run`, `--list-phases`.
+- **Tests**: `tests/` (stdlib `unittest`): evidence contract, authorization,
+  nmap parser, retest diff, compliance mapping, AI grounding guard, redaction.
 
 ### Notes
-- Core runs on the Python standard library alone; external tools are optional
-  enrichment.
+- Core runs on the Python standard library alone; external tools and
+  celery/redis/psycopg2 are optional enrichment.
 - Missing tools are reported honestly and never fabricated around.

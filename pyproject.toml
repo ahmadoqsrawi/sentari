@@ -13,6 +13,12 @@ authors = [{ name = "Ahmad", email = "contact@ahmadoqsrawi.com" }]
 keywords = ["security", "pentest", "reconnaissance", "authorized-testing"]
 dependencies = []  # core runs on the standard library only
 
+[project.optional-dependencies]
+ai = ["openai>=1.3", "anthropic>=0.39"]
+distributed = ["celery>=5", "redis>=5"]
+postgres = ["psycopg2-binary>=2.9"]
+dev = ["pytest>=7"]
+
 [project.scripts]
 sentari = "sentari.cli:main"
 
