@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -61,6 +61,22 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Report findings seen across more than one target in --db/--runs-dir, then exit.")
     p.add_argument("--trends", action="store_true",
                    help="Show how findings change across stored runs in --db/--runs-dir, then exit.")
+    p.add_argument("--openapi", metavar="SRC",
+                   help="OpenAPI/Swagger/Postman spec (file or URL); its endpoints become scan targets.")
+    p.add_argument("--openapi-base-url",
+                   help="Override the base URL for the ingested API endpoints.")
+    p.add_argument("--browser", action="store_true",
+                   help="Client-side DAST: drive a headless browser (needs Playwright).")
+    p.add_argument("--sandbox", action="store_true",
+                   help="Run the gated offensive tools inside a disposable Docker container.")
+    p.add_argument("--sandbox-image", metavar="IMAGE",
+                   help="Docker image for --sandbox (default: a Metasploit toolchain image).")
+    p.add_argument("--autofix", metavar="FILE",
+                   help="Write a Markdown remediation guide built from the findings.")
+    p.add_argument("--autofix-pr", action="store_true",
+                   help="Open the remediation guide as a DRAFT pull request (needs gh + a repo).")
+    p.add_argument("--autofix-repo", metavar="DIR", default=".",
+                   help="Git repository for --autofix-pr (default: current directory).")
     p.add_argument("--wordlist", help="Wordlist path for gobuster content discovery (Phase 2).")
     p.add_argument("--sqlmap-url", help="Explicit URL to test with sqlmap (Phase 3, gated).")
     p.add_argument("--dry-run", action="store_true", help="Show what would run; execute nothing.")
@@ -227,6 +243,14 @@ def main(argv: list[str] | None = None) -> int:
         options["openvas"] = True
     if args.nexpose:
         options["nexpose"] = True
+    if args.openapi:
+        options["openapi"] = args.openapi
+        if args.openapi_base_url:
+            options["openapi_base_url"] = args.openapi_base_url
+    if args.browser:
+        options["browser"] = True
+    if args.sandbox:
+        options["sandbox"] = {"image": args.sandbox_image} if args.sandbox_image else {}
 
     if args.exploit:
         from .phases.exploit import CONFIRM_STRING
@@ -430,6 +454,17 @@ def main(argv: list[str] | None = None) -> int:
         from .reporting import pdf as pdf_report
         ok, msg = pdf_report.render_pdf(results, args.target, args.pdf)
         print(msg)
+
+    if args.autofix or args.autofix_pr:
+        from . import autofix
+        report_md = autofix.build_report(
+            results, _analysis_to_dict(analysis) if analysis is not None else None)
+        if args.autofix:
+            Path(args.autofix).write_text(report_md, encoding="utf-8")
+            print(f"Remediation guide written to {args.autofix}")
+        if args.autofix_pr:
+            ok, msg = autofix.open_draft_pr(report_md, args.autofix_repo, args.target)
+            print(f"Autofix PR: {msg}")
     return 0
 
 
