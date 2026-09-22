@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-208%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-211%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -255,11 +255,9 @@ sentari --web-pentest https://app.example.com --authorized \
 
 ### Guided setup (wizard)
 
-For a full pentest with authenticated access and source review, `sentari wizard` walks the same five steps as a hosted setup and ends in a Review & Launch summary:
+`sentari wizard` sets up an assessment step by step and ends in a Review & Launch summary. It first asks what to run, a **Web App Pentest** or a **Code Review**; you can jump straight to one with `sentari wizard web-pentest` or `sentari wizard code-review`.
 
-```bash
-sentari wizard
-```
+**Web App Pentest** walks five steps:
 
 1. **Target & APIs** — target URL and any OpenAPI/Swagger/Postman specs; optionally prove domain control by DNS TXT.
 2. **Scope** — attackable hosts/CIDRs and off-limits ones (never touched).
@@ -267,7 +265,12 @@ sentari wizard
 4. **Access** — test users (Sentari can record a browser login and capture the session cookie for you, or you paste an auth header) and custom headers (API keys, JWTs, WAF-bypass tokens) sent with every request.
 5. **Context** — instructions, focus areas, and reference docs.
 
-The wizard saves a reusable `pentest.json`, so a scan is repeatable and schedulable:
+**Code Review** is shorter and needs no live environment:
+
+1. **Source** — a git repo (GitHub/GitLab/Bitbucket) or a local path (an upload); it is cloned or read, scanned with SAST, and (with an AI key) given fix suggestions. Authorized by default, since it only reads source you can already access.
+2. **Context** — the threats to focus on, the parts to review, known issues, and reference docs.
+
+Each wizard saves a reusable spec (`pentest.json` or `code-review.json`), so a scan is repeatable and schedulable:
 
 ```bash
 sentari --spec pentest.json          # re-run the same setup
@@ -327,8 +330,8 @@ sentari --list-phases
 |--------|-------------|
 | `--code-review PATH` | Workflow preset: source-code vulnerability review (SAST over `PATH`, no live environment) with AI fix suggestions. Local files, authorized by default. |
 | `--web-pentest URL` | Workflow preset: authenticated live-app pentest (full pipeline + injection/OOB, browser execution, API checks). Still needs `--authorized`; add `--identity` for authenticated testing. |
-| `sentari wizard` | Interactive "New Web App Pentest" setup (Target, Scope, Repositories, Access, Context), with Review & Launch; saves a reusable `pentest.json`. |
-| `--spec FILE` | Load a declarative pentest spec (`pentest.json`) written by the wizard. |
+| `sentari wizard [web-pentest\|code-review]` | Interactive setup with Review & Launch (Web App Pentest: Target, Scope, Repositories, Access, Context; Code Review: Source, Context); saves a reusable spec. |
+| `--spec FILE` | Load a declarative spec (`pentest.json` / `code-review.json`) written by the wizard. |
 | `--exclude HOST\|CIDR` | Off-limits host/CIDR, never touched even if in scope (repeatable). |
 | `--header 'NAME: VALUE'` | Custom header sent with every request: API key, JWT, session cookie, WAF-bypass token (repeatable). |
 | `--code-review URL` | `--code-review` also accepts a git URL (GitHub/GitLab/Bitbucket): shallow-cloned, scanned, removed. |

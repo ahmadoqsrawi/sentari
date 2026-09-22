@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.22.0] - 2026-09-23
+
+### Added
+- Code Review wizard: `sentari wizard` now asks whether to set up a Web App Pentest or a Code Review, or jump straight in with `sentari wizard code-review` / `sentari wizard web-pentest`. The Code Review flow is two steps (Source, then Context) and needs no live environment: point it at a git repo or a local path, add the threats/areas to focus on, review, and launch. It saves a reusable `code-review.json` and is authorized by default (it only reads source you can already access).
+
 ## [0.21.0] - 2026-09-23
 
 ### Added

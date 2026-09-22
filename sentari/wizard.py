@@ -14,7 +14,8 @@ import sys
 
 from . import domainverify, spec as spec_mod
 
-STEPS = ["Target & APIs", "Scope", "Repositories", "Access", "Context"]
+WEB_STEPS = ["Target & APIs", "Scope", "Repositories", "Access", "Context"]
+CR_STEPS = ["Source", "Context"]
 
 
 def _ask(prompt: str, default: str = "") -> str:
@@ -116,7 +117,32 @@ def _step_context(spec: dict) -> None:
         "Enable active/intrusive checks (safe mode off)?", False)
 
 
-_STEP_FNS = [_step_target, _step_scope, _step_repos, _step_access, _step_context]
+def _cr_step_source(spec: dict) -> None:
+    from . import repo
+    print("\n── Step 1/2  Source " + "─" * 37)
+    print("Connect a git repo (GitHub/GitLab/Bitbucket) or give a local path (an upload).")
+    print("Code review is static: no live environment is touched.")
+    current = (spec.get("repositories") or [spec.get("source", "")])
+    src = _ask("Repository URL or local path", current[0] if current else "")
+    if src and repo.is_repo_url(src):
+        spec["repositories"] = [src]
+        spec["source"] = ""
+    else:
+        spec["source"] = src
+        spec["repositories"] = []
+
+
+def _cr_step_context(spec: dict) -> None:
+    print("\n── Step 2/2  Context " + "─" * 36)
+    ctx = spec.setdefault("context", {})
+    ctx["instructions"] = _ask(
+        "Instructions (threats to focus on, parts to review, known issues)",
+        ctx.get("instructions", ""))
+    ctx["documentation"] = _ask_list("Reference docs / API specs (optional)")
+
+
+_WEB_STEP_FNS = [_step_target, _step_scope, _step_repos, _step_access, _step_context]
+_CR_STEP_FNS = [_cr_step_source, _cr_step_context]
 
 
 def _host(target: str) -> str:
@@ -166,24 +192,64 @@ def _run_verify(domain: str) -> None:
             print(f"  note: {res.error}")
 
 
+def _mode_from_argv(argv: list[str]) -> str | None:
+    if not argv:
+        return None
+    a = argv[0].strip().lower()
+    if a in ("code-review", "code", "review", "cr"):
+        return "code-review"
+    if a in ("web-pentest", "web", "pentest", "wp"):
+        return "web-pentest"
+    return None
+
+
+def _choose_mode() -> str:
+    print("\nWhat do you want to set up?")
+    print("  1. Web App Pentest  (live target)")
+    print("  2. Code Review      (source only, no live environment)")
+    return "code-review" if _ask("Choose", "1").strip() == "2" else "web-pentest"
+
+
 def run(argv: list[str] | None = None) -> int:
-    print("Sentari: New Web App Pentest")
+    argv = argv or []
+    print("Sentari: New Assessment")
     print("Answer each step; blank keeps the default. Ctrl-C to abort.")
-    spec = {"mode": "web-pentest", "target": "", "api_specs": [],
-            "scope": {"attack": [], "exclude": []}, "repositories": [],
-            "access": {"users": [], "headers": {}},
-            "context": {"instructions": "", "documentation": []},
-            "safe_mode": True, "authorized": False}
     try:
-        for fn in _STEP_FNS:
-            fn(spec)
-        return _review_and_launch(spec)
+        mode = _mode_from_argv(argv) or _choose_mode()
+        if mode == "code-review":
+            return _run_code_review()
+        return _run_web_pentest()
     except KeyboardInterrupt:
         print("\nAborted.")
         return 1
 
 
-def _review_and_launch(spec: dict) -> int:
+def _run_web_pentest() -> int:
+    print("\n[New Web App Pentest]")
+    spec = {"mode": "web-pentest", "target": "", "api_specs": [],
+            "scope": {"attack": [], "exclude": []}, "repositories": [],
+            "access": {"users": [], "headers": {}},
+            "context": {"instructions": "", "documentation": []},
+            "safe_mode": True, "authorized": False}
+    for fn in _WEB_STEP_FNS:
+        fn(spec)
+    return _review_and_launch(spec, WEB_STEPS, _WEB_STEP_FNS, "pentest.json")
+
+
+def _run_code_review() -> int:
+    print("\n[New Code Review]")
+    # Static review of source you are authorized to read, so it is authorized
+    # by default and touches no live environment.
+    spec = {"mode": "code-review", "repositories": [], "source": "",
+            "context": {"instructions": "", "documentation": []},
+            "safe_mode": True, "authorized": True}
+    for fn in _CR_STEP_FNS:
+        fn(spec)
+    return _review_and_launch(spec, CR_STEPS, _CR_STEP_FNS, "code-review.json")
+
+
+def _review_and_launch(spec: dict, steps: list[str], step_fns: list,
+                       save_name: str) -> int:
     while True:
         print("\n== Review & Launch " + "=" * 37)
         print(spec_mod.summary(spec))
@@ -193,35 +259,36 @@ def _review_and_launch(spec: dict) -> int:
         except EOFError:
             choice = "q"
         if choice in ("", "l", "launch"):
-            return _launch(spec)
+            return _launch(spec, save_name)
         if choice in ("q", "quit"):
             print("Nothing launched.")
             return 0
         if choice in ("s", "save"):
-            path = _ask("Save spec to", "pentest.json")
+            path = _ask("Save spec to", save_name)
             spec_mod.save(path, spec)
             print(f"Saved {path}. Re-run with: sentari --spec {path}")
         if choice in ("e", "edit"):
-            for i, name in enumerate(STEPS, 1):
+            for i, name in enumerate(steps, 1):
                 print(f"  {i}. {name}")
             sel = _ask("Edit which step number")
-            if sel.isdigit() and 1 <= int(sel) <= len(_STEP_FNS):
-                _STEP_FNS[int(sel) - 1](spec)
+            if sel.isdigit() and 1 <= int(sel) <= len(step_fns):
+                step_fns[int(sel) - 1](spec)
 
 
-def _launch(spec: dict) -> int:
-    if not spec.get("authorized"):
+def _launch(spec: dict, save_name: str) -> int:
+    # A live pentest needs explicit authorization; code review of your own
+    # source does not (it only reads local files).
+    if spec.get("mode") != "code-review" and not spec.get("authorized"):
         if not _ask_yes(
                 "I have explicit written authorization to test this target", False):
             print("Not launched: authorization is required. You can save the spec "
                   "and launch later with --spec once authorized.")
             return 0
         spec["authorized"] = True
-    path = "pentest.json"
-    spec_mod.save(path, spec)
-    print(f"\nSpec saved to {path}. Launching...\n")
+    spec_mod.save(save_name, spec)
+    print(f"\nSpec saved to {save_name}. Launching...\n")
     from .cli import main as cli_main
-    return cli_main(["--spec", path])
+    return cli_main(["--spec", save_name])
 
 
 if __name__ == "__main__":  # pragma: no cover

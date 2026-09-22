@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from sentari import domainverify, loginrec, nethdr, repo, spec as spec_mod
+from sentari import domainverify, loginrec, nethdr, repo, spec as spec_mod, wizard
 from sentari.authorization import AuditLog, AuthorizationError, Scope, authorize
 from sentari.cli import _expand_presets, build_parser
 
@@ -85,6 +85,34 @@ class TestDomainVerify(unittest.TestCase):
         t = domainverify.token_for("example.com")
         msg = domainverify.instructions("example.com", t)
         self.assertIn("sentari-verify=" + t, msg)
+
+
+class TestWizard(unittest.TestCase):
+    def test_mode_from_argv(self):
+        self.assertEqual(wizard._mode_from_argv(["code-review"]), "code-review")
+        self.assertEqual(wizard._mode_from_argv(["cr"]), "code-review")
+        self.assertEqual(wizard._mode_from_argv(["web-pentest"]), "web-pentest")
+        self.assertEqual(wizard._mode_from_argv(["pentest"]), "web-pentest")
+        self.assertIsNone(wizard._mode_from_argv([]))
+        self.assertIsNone(wizard._mode_from_argv(["something-else"]))
+
+    def test_code_review_step_lists_are_shorter(self):
+        self.assertEqual(wizard.CR_STEPS, ["Source", "Context"])
+        self.assertEqual(len(wizard._CR_STEP_FNS), 2)
+        self.assertEqual(len(wizard._WEB_STEP_FNS), 5)
+
+    def test_cr_source_classifies_url_vs_path(self):
+        import builtins
+        answers = iter(["https://github.com/me/app"])
+        orig = builtins.input
+        builtins.input = lambda *a: next(answers)
+        try:
+            spec = {"repositories": [], "source": ""}
+            wizard._cr_step_source(spec)
+        finally:
+            builtins.input = orig
+        self.assertEqual(spec["repositories"], ["https://github.com/me/app"])
+        self.assertEqual(spec["source"], "")
 
 
 class TestLoginRec(unittest.TestCase):

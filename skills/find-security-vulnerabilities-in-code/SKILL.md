@@ -11,6 +11,23 @@ metadata:
 
 SAST reads code; it does not touch a running target. It runs through the same engine, so results land in the same report and carry evidence (semgrep's own output). Install and the full flag set are in the **penetration-testing-with-sentari** skill.
 
+## 0. Guided setup (optional)
+
+For a one-command review, use the Code Review wizard: it asks for the source (a git repo URL or a local path) and the context (threats/areas to focus on), then launches.
+
+```bash
+sentari wizard code-review    # Source, Context, Review & Launch; saves code-review.json
+```
+
+Or go straight to the preset, which accepts a local path or a git URL (cloned, scanned, removed) and adds AI fix suggestions:
+
+```bash
+sentari --code-review ./src
+sentari --code-review https://github.com/me/app
+```
+
+Both are authorized by default (they only read source you can already access) and map onto the flags below.
+
 ## 1. Confirm scope
 
 - The code is the user's or they are authorized to review it.
