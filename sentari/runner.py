@@ -18,13 +18,17 @@ from .models import Evidence
 
 
 class ToolRunner:
-    def __init__(self, default_timeout: int = 120, dry_run: bool = False) -> None:
+    def __init__(self, default_timeout: int = 120, dry_run: bool = False,
+                 sandbox=None) -> None:
         self.default_timeout = default_timeout
         self.dry_run = dry_run
+        self.sandbox = sandbox  # optional Sandbox: run commands inside a container
         self._evidence: list[Evidence] = []
 
-    @staticmethod
-    def available(tool: str) -> bool:
+    def available(self, tool: str) -> bool:
+        # In sandbox mode the tools live in the image, not on the host.
+        if self.sandbox is not None:
+            return True
         return shutil.which(tool) is not None
 
     @property
@@ -61,6 +65,10 @@ class ToolRunner:
         a non-zero exit or timeout is itself recorded as evidence."""
         tool = tool or command[0]
         timeout = timeout or self.default_timeout
+        # In sandbox mode, rewrite the command to run inside a container. The
+        # recorded evidence shows the actual command that ran (docker run ...).
+        if self.sandbox is not None:
+            command = self.sandbox.wrap(command)
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
 

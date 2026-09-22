@@ -51,16 +51,25 @@ def run_assessment(
 
     # Gated exploitation runs only with safe mode off and an explicit, confirmed
     # request. It is not in the default phase list, so it never runs by accident.
+    # Optional Docker sandbox: the gated offensive tools run inside a disposable
+    # container instead of on the host. It isolates where commands run; it does
+    # not change reporting or loosen any gate.
+    sbx = None
+    sbx_cfg = (options or {}).get("sandbox")
+    if not safe_mode and sbx_cfg:
+        from .sandbox import Sandbox
+        sbx = Sandbox(**sbx_cfg) if isinstance(sbx_cfg, dict) else Sandbox()
+
     if not safe_mode and (options or {}).get("exploit"):
         from .phases.exploit import ExploitPhase
-        ctx.runner = ToolRunner(timeout, dry_run)
+        ctx.runner = ToolRunner(timeout, dry_run, sandbox=sbx)
         results.append(ExploitPhase().run(ctx))
 
     # Gated post-exploitation (lateral movement, AD collection). Same gates as
     # exploitation: never runs by accident and never in safe mode.
     if not safe_mode and (options or {}).get("postexploit"):
         from .phases.postexploit import PostExploitPhase
-        ctx.runner = ToolRunner(timeout, dry_run)
+        ctx.runner = ToolRunner(timeout, dry_run, sandbox=sbx)
         results.append(PostExploitPhase().run(ctx))
 
     if apply_compliance:
