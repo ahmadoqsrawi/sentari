@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -46,8 +46,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--postexploit-dc", help="Domain controller IP for BloodHound collection.")
     p.add_argument("--bloodhound", action="store_true",
                    help="Collect AD data with bloodhound-python during post-exploitation.")
+    p.add_argument("--privesc", action="store_true",
+                   help="Run read-only privilege-escalation enumeration over SSH (post-exploitation).")
+    p.add_argument("--privesc-host", help="SSH host for privesc enumeration (default: the target).")
+    p.add_argument("--privesc-key", help="SSH private key path for privesc enumeration.")
+    p.add_argument("--privesc-port", type=int, default=22, help="SSH port for privesc (default 22).")
     p.add_argument("--openvas", action="store_true",
                    help="Pull results from a configured Greenbone/OpenVAS instance (GVM_* env).")
+    p.add_argument("--nexpose", action="store_true",
+                   help="Pull results from a configured Rapid7 Nexpose/InsightVM console (NEXPOSE_* env).")
     p.add_argument("--asset-value", choices=["low", "medium", "high", "critical"],
                    default="medium", help="Asset criticality for business-impact scoring.")
     p.add_argument("--correlate", action="store_true",
@@ -95,6 +102,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--agent-steps", type=int, default=14, help="Max agent tool calls (default 14).")
     p.add_argument("--ai", action="store_true",
                    help="Grounded AI triage of the real findings (prioritize/chain/remediate).")
+    p.add_argument("--ai-osint", action="store_true",
+                   help="AI-assisted OSINT: the model proposes subdomain labels, DNS confirms them.")
     p.add_argument("--ai-provider", help="AI provider: openai, anthropic, google, openrouter, ollama.")
     p.add_argument("--ai-model", help="AI model id (provider-specific).")
     p.add_argument("--ai-base-url", help="Custom base URL (OpenAI-compatible / Ollama).")
@@ -216,6 +225,8 @@ def main(argv: list[str] | None = None) -> int:
         options["sqlmap_url"] = args.sqlmap_url
     if args.openvas:
         options["openvas"] = True
+    if args.nexpose:
+        options["nexpose"] = True
 
     if args.exploit:
         from .phases.exploit import CONFIRM_STRING
@@ -249,7 +260,18 @@ def main(argv: list[str] | None = None) -> int:
             "username": args.postexploit_user, "password": args.postexploit_pass or "",
             "domain": args.postexploit_domain or "", "dc_ip": args.postexploit_dc or "",
             "bloodhound": args.bloodhound,
+            "privesc": args.privesc, "privesc_host": args.privesc_host or "",
+            "privesc_key": args.privesc_key or "", "privesc_port": args.privesc_port,
         }
+
+    if args.ai_osint:
+        if args.enqueue:
+            print("note: --ai-osint runs locally; ignoring it for the enqueued run.",
+                  file=sys.stderr)
+        else:
+            from .ai import get_provider
+            options["ai_osint_provider"] = get_provider(
+                args.ai_provider, args.ai_model, base_url=args.ai_base_url)
 
     if args.enqueue:
         from .tasks import HAVE_CELERY, run_assessment_task
