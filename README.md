@@ -49,6 +49,11 @@ Sentari is an AI-driven penetration testing platform for developers and security
 
 ## ✨ Features
 
+Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of-band-confirmed exploits, client-side attacks, access control, API and JWT, cloud, AI triage and autonomous modes, gated exploitation, reporting, and integrations.
+
+<details>
+<summary><b>Show the full feature list</b></summary>
+
 ### 🔍 Reconnaissance
 - DNS resolution and IP mapping
 - Port and service discovery: a built-in TCP connect scan, enriched by `nmap -sV` when present
@@ -164,7 +169,12 @@ Sentari is an AI-driven penetration testing platform for developers and security
 - **Business impact and risk matrix**: `--asset-value` weights each finding's CVSS or severity by how critical the asset is, and the report places findings on a likelihood by impact grid
 - **Cross-asset correlation and trends**: `--correlate` surfaces a finding seen across more than one target; `--trends` shows severity counts per stored run over time
 
+</details>
+
 ## 🏗️ Architecture
+
+<details>
+<summary><b>Show the pipeline diagram and package map</b></summary>
 
 All phases run tools through one shared engine; gated exploitation, enrichment, AI triage, reporting, and retest read the results.
 
@@ -218,6 +228,8 @@ Each package has one job:
 | `db/` | SQLite / Postgres run store |
 | `web/` | Read-only dashboard and REST API |
 | `tasks/` | Celery app and task |
+
+</details>
 
 ## 🚀 Quick start
 
@@ -278,6 +290,9 @@ sentari --list-phases
 
 ## ⚙️ Command-line options
 
+<details>
+<summary><b>Show all command-line options</b></summary>
+
 | Option | Description |
 |--------|-------------|
 | `--scope HOST` (or CIDR) | Authorized target(s). Repeatable. Required. |
@@ -325,6 +340,8 @@ sentari --list-phases
 | `--no-anomaly` | Do not flag unusual findings for manual review. |
 | `--enqueue` | Send the scan to a Celery worker. |
 | `--dry-run` | Show what would run without executing anything. |
+
+</details>
 
 ## 📝 Examples
 
