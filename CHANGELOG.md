@@ -4,6 +4,14 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.2.0] - 2026-09-22
+
+### Added
+- **SIEM export** (`sentari/siem/`): ship findings and a run summary to Splunk HEC, Elasticsearch, syslog, or a generic webhook, via `--siem-url`/`--siem-type` (token from `--siem-token` or `SENTARI_SIEM_TOKEN`).
+- **Prometheus metrics** (`sentari/metrics.py`): a `/metrics` endpoint on the dashboard, plus a Grafana dashboard and scrape config under `deploy/`.
+- **Model catalog** (`sentari/ai/catalog.py`): `--list-models` lists known models per provider; any provider-specific id still works.
+- **Anomaly flagging** (`sentari/anomaly.py`): tags findings whose evidence is unusual for the target as worth manual review. It is a prioritization aid, never a vulnerability claim, and it creates no findings. Disable with `--no-anomaly`.
+
 ## [0.1.0] - 2026-09-22
 
 First release. An evidence-grounded assessment pipeline built around one rule: a finding may exist only if a real command produced output for it.

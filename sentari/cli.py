@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -50,6 +50,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--runs-dir", default="runs", help="Directory of saved runs (dashboard).")
     p.add_argument("--retest", metavar="BASELINE_JSON",
                    help="Compare this run against a prior --json baseline (fixed/still/new).")
+    p.add_argument("--no-anomaly", action="store_true",
+                   help="Do not flag unusual findings for manual review.")
     p.add_argument("--no-compliance", action="store_true",
                    help="Do not tag findings with OWASP/CWE/NIST references.")
     p.add_argument("--ai", action="store_true",
@@ -57,6 +59,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--ai-provider", help="AI provider: openai, anthropic, google, openrouter, ollama.")
     p.add_argument("--ai-model", help="AI model id (provider-specific).")
     p.add_argument("--ai-base-url", help="Custom base URL (OpenAI-compatible / Ollama).")
+    p.add_argument("--siem-url", help="Ship findings to a SIEM at this URL (or host:port for syslog).")
+    p.add_argument("--siem-type", choices=["webhook", "splunk", "elasticsearch", "syslog"],
+                   default="webhook", help="SIEM transport (default webhook).")
+    p.add_argument("--siem-token", help="SIEM auth token (else read from SENTARI_SIEM_TOKEN).")
+    p.add_argument("--list-models", action="store_true", help="List known AI models per provider and exit.")
     p.add_argument("--audit-log", default="sentari-audit.log", help="Append-only audit log path.")
     p.add_argument("--version", action="version", version=f"sentari {__version__}")
     return p
@@ -97,6 +104,15 @@ def main(argv: list[str] | None = None) -> int:
         serve(runs_dir=args.runs_dir, port=args.port, host=args.host, db=args.db)
         return 0
 
+    if args.list_models:
+        from .ai.catalog import list_models
+        for provider, models in list_models().items():
+            print(f"{provider}:")
+            for m in models:
+                print(f"  {m}")
+        print("\nAny provider-specific model id also works via --ai-model.")
+        return 0
+
     if args.list_phases:
         for cls in sorted(PHASES, key=lambda c: c.number):
             print(f"  {cls.number}. {cls.name:12s} {cls.description}")
@@ -135,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
             args.target, scope, args.authorized, audit,
             safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
             dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
+            apply_anomaly=not args.no_anomaly,
         )
     except AuthorizationError as e:
         print(f"REFUSED: {e}", file=sys.stderr)
@@ -201,6 +218,14 @@ def main(argv: list[str] | None = None) -> int:
         rid = store.save_run(args.target, payload)
         store.close()
         print(f"Run persisted to db as {rid} (view with: sentari --serve --db {args.db})")
+
+    if args.siem_url:
+        import os as _os
+        from .siem import ship
+        token = args.siem_token or _os.getenv("SENTARI_SIEM_TOKEN")
+        sent, errors = ship(args.siem_type, args.siem_url, payload, args.target, token)
+        print(f"SIEM ({args.siem_type}): {sent} event(s) sent" + (f", errors: {errors}" if errors else ""))
+        audit.record("siem.export", target=args.target, type=args.siem_type, sent=sent, errors=errors)
 
     if args.html:
         from .reporting import html as html_report

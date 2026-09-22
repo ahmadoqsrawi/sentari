@@ -127,6 +127,9 @@ def make_handler(load):
             path = self.path.split("?")[0]
             if path == "/":
                 self._send(200, _dashboard(runs))
+            elif path == "/metrics":
+                from ..metrics import render_metrics
+                self._send(200, render_metrics(runs), "text/plain; version=0.0.4")
             elif path == "/api/runs":
                 self._send(200, json.dumps({"runs": list(runs)}), "application/json")
             elif path.startswith("/api/runs/"):

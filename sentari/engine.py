@@ -26,6 +26,7 @@ def run_assessment(
     dry_run: bool = False,
     options: Optional[dict] = None,
     apply_compliance: bool = True,
+    apply_anomaly: bool = True,
 ) -> list[PhaseResult]:
     """Authorize the target, run the selected phases in order, tag compliance.
     Raises AuthorizationError if the target is not authorized/in scope."""
@@ -48,6 +49,9 @@ def run_assessment(
     if apply_compliance:
         from . import compliance
         compliance.apply(results)
+    if apply_anomaly:
+        from . import anomaly
+        anomaly.apply(results)
     return results
 
 

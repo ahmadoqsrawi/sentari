@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentari"
-version = "0.1.0"
+version = "0.2.0"
 description = "Evidence-grounded, authorized security assessment orchestrator"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -22,5 +22,5 @@ dev = ["pytest>=7"]
 [project.scripts]
 sentari = "sentari.cli:main"
 
-[tool.setuptools]
-packages = ["sentari", "sentari.phases", "sentari.parsers", "sentari.reporting"]
+[tool.setuptools.packages.find]
+include = ["sentari*"]

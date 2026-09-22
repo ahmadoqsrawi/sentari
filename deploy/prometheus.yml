@@ -1,0 +1,10 @@
+# Prometheus scrape config for Sentari.
+# The dashboard server exposes /metrics; point Prometheus at it.
+global:
+  scrape_interval: 30s
+
+scrape_configs:
+  - job_name: sentari
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["sentari-dashboard:8600"]   # or 127.0.0.1:8600 for a local run

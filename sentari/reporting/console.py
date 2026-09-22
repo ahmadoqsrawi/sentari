@@ -52,6 +52,9 @@ def render(results: list[PhaseResult]) -> str:
             ] if x)
             if tag:
                 lines.append(f"        compliance: {tag}")
+        anomaly = (f.metadata or {}).get("anomaly")
+        if anomaly:
+            lines.append(f"        anomaly: {anomaly}")
         lines.append(f"        evidence: {', '.join(f.evidence_ids)}")
 
     lines.append("\n" + "-" * 70)

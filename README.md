@@ -86,6 +86,12 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - Read-only web dashboard and REST API, bound to localhost by default
 - Optional Celery workers for distributed runs, with Docker, Compose, and Kubernetes manifests
 
+### 🔌 Integrations and observability
+- **SIEM export**: ship findings and a run summary to Splunk (HEC), Elasticsearch, syslog, or a generic webhook
+- **Prometheus metrics**: a `/metrics` endpoint on the dashboard, plus a Grafana dashboard under `deploy/grafana/`
+- **Model catalog**: `--list-models` shows the known models per provider; any provider-specific id also works
+- **Anomaly flagging**: marks findings whose evidence is unusual for the target as "worth manual review". It is a prioritization aid, not a detector, and never claims a vulnerability
+
 ## 🏗️ Architecture
 
 Phases 1 to 4 run tools through one shared engine; reporting and retest read the results.
@@ -181,6 +187,9 @@ sentari --list-phases
 | `--ai` | Grounded AI triage of the findings. |
 | `--ai-provider` / `--ai-model` / `--ai-base-url` | Choose the provider and model. |
 | `--serve` | Start the read-only web dashboard instead of scanning. |
+| `--siem-url` / `--siem-type` | Ship findings to a SIEM (webhook, splunk, elasticsearch, syslog). |
+| `--list-models` | List known AI models per provider and exit. |
+| `--no-anomaly` | Do not flag unusual findings for manual review. |
 | `--enqueue` | Send the scan to a Celery worker. |
 | `--dry-run` | Show what would run without executing anything. |
 
