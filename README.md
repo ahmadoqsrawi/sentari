@@ -95,7 +95,7 @@ Sentari runs real security tools and reports only what they actually found. Ever
 
 ### 🗄️ Persistence and interfaces
 - Run store in SQLite by default, or Postgres
-- Read-only web dashboard and REST API, bound to localhost by default
+- Read-only executive web dashboard (KPI cards, severity and trend charts, risk matrix, compliance coverage) and REST API, bound to localhost by default
 - Optional Celery workers for distributed runs, with Docker, Compose, and Kubernetes manifests
 
 ### 🔌 Integrations and observability
@@ -106,7 +106,8 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - **Scheduled retests**: a Celery beat schedule (`SENTARI_SCHEDULE_*`) reruns a target on a cron and reports the delta vs the previous run
 - **CVSS scoring**: CVSS v3.1 base scores on nuclei findings that carry a vector
 - **Threat-intel correlation**: matches finding CVEs against the CISA Known Exploited Vulnerabilities catalog and tags the ones known to be exploited in the wild. Reports what CISA lists; when the catalog is unreachable it says so rather than guessing
-- **OpenVAS / Greenbone**: `--openvas` pulls results from a configured GVM instance into the vuln phase as evidence-backed findings
+- **OpenVAS / Greenbone and Nexpose / InsightVM**: `--openvas` and `--nexpose` pull results from a configured scanner into the vuln phase as evidence-backed findings
+- **AI-assisted OSINT**: `--ai-osint` lets the model propose likely subdomain labels; DNS confirms each one, so only names that actually resolve are recorded, and the model writes a short summary over the real assets
 
 ### 🔎 Prioritization aids (never vulnerability claims)
 - **Anomaly flagging**: marks findings whose evidence is unusual for the target as "worth manual review"
@@ -146,6 +147,8 @@ Each package has one job:
 | `engine` | The one `run_assessment` path shared by the CLI and workers |
 | `phases/` | `osint`, `recon`, `scanning`, `vuln`, `verify`, and gated `exploit` / `postexploit` |
 | `threatintel` / `classify` | CISA KEV correlation; rule-based service classification |
+| `openvas` / `nexpose` / `privesc` | External scanner connectors; SSH privilege-escalation enumeration |
+| `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
 | `parsers/` | Tool-output parsers (for example, `nmap` XML) |
 | `compliance` | OWASP / CWE / NIST tagging |
@@ -196,9 +199,9 @@ pip install ".[postgres]"     # Postgres run store
 Two gated offensive phases exist but are off by default and never in the phase list:
 
 - **Exploitation** (`--exploit`): operator-named Metasploit modules plus a bounded, redacted exfil-simulation.
-- **Post-exploitation** (`--postexploit`): CrackMapExec SMB enumeration and bloodhound-python AD collection with credentials you supply.
+- **Post-exploitation** (`--postexploit`): CrackMapExec SMB enumeration, bloodhound-python AD collection, and read-only SSH privilege-escalation enumeration (`--privesc`), with credentials you supply.
 
-Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string, and is for authorized, non-production targets only.
+Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string, and is for authorized, non-production targets only. The privilege-escalation checks are read-only and change nothing on the host.
 
 ```bash
 sentari --list-phases
@@ -216,9 +219,10 @@ sentari --list-phases
 | `--cloud {aws,azure,gcp}` | List internet-facing assets in your cloud account and exit. |
 | `--asset-value {low,medium,high,critical}` | Asset criticality for business-impact scoring. |
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
-| `--openvas` | Pull results from a configured Greenbone/OpenVAS instance (`GVM_*` env). |
+| `--openvas` / `--nexpose` | Pull results from a configured OpenVAS (`GVM_*`) or Nexpose/InsightVM (`NEXPOSE_*`) instance. |
+| `--ai-osint` | AI proposes subdomain labels; DNS confirms them (runs locally). |
 | `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized non-production only. |
-| `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`) | Gated post-exploitation, authorized non-production only. |
+| `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`, `--privesc`) | Gated post-exploitation (lateral movement, AD collection, SSH privesc enumeration), authorized non-production only. |
 | `--save-run DIR` | Save the run for the dashboard. |
 | `--db DSN` | Persist runs to SQLite (a path) or Postgres (a `postgres://` URL). |
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |

@@ -4,6 +4,14 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.6.0] - 2026-09-22
+
+### Added
+- **Nexpose / InsightVM connector** (`nexpose.py`, `--nexpose`): pulls a host's vulnerabilities from a Rapid7 console over the REST API (v3, `NEXPOSE_*` env) into the vuln phase as evidence-backed findings. Stdlib only, graceful when unconfigured. The OpenVAS and Nexpose paths now share one external-source handler.
+- **Privilege-escalation enumeration** (`privesc.py`, `--privesc`): read-only SSH enumeration of a Linux host (NOPASSWD sudo, dangerous SUID binaries, writable `/etc/passwd`, readable `/etc/shadow`, dangerous capabilities, writable cron). Each command's output is the evidence; a vector is reported only when the output shows it. Runs inside the gated post-exploitation phase (needs paramiko). Changes nothing on the host.
+- **AI-powered OSINT** (`ai/osint.py`, `--ai-osint`): the model proposes likely subdomain labels, then DNS confirms each one, so a subdomain is recorded only when it actually resolves. The model also writes a short analyst summary over the real discovered assets. Grounded: the model never asserts a host exists.
+- **Executive dashboard**: the web dashboard now leads with KPI cards (runs, findings, critical/high, known-exploited, targets), a severity distribution chart, a findings-over-time trend, a risk prioritization matrix, and OWASP compliance coverage, all as inline SVG with no external scripts. The single-run view gains CVSS, known-exploited, and business-impact chips.
+
 ## [0.5.0] - 2026-09-22
 
 ### Added
