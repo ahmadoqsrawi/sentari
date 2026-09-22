@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from ..concurrency import pmap
 from ..models import Finding, PhaseResult, Severity
 from .base import Phase, PhaseContext
-from .recon import WEB_PORTS, _hostname
+from .recon import WEB_PORTS, _hostname, target_port
 
 # header -> (severity, why, recommendation)
 _SECURITY_HEADERS = {
@@ -52,15 +52,13 @@ _COMMON_PATHS = ["/.git/config", "/.git/HEAD", "/.env", "/.env.local", "/backup"
 
 def _web_targets(ctx: PhaseContext) -> list[tuple[str, int]]:
     host = ctx.shared.get("host") or _hostname(ctx.target)
-    ports = [p for p in ctx.shared.get("open_ports", []) if p in WEB_PORTS]
-    if not ports:  # phase 2 run standalone: infer sensibly
-        if "://" in ctx.target:
-            from urllib.parse import urlparse
-            u = urlparse(ctx.target)
-            ports = [u.port or (443 if u.scheme == "https" else 80)]
-        else:
-            ports = [443, 80]
-    return [(host, p) for p in ports]
+    ports = {p for p in ctx.shared.get("open_ports", []) if p in WEB_PORTS}
+    tp = target_port(ctx.target)
+    if tp:
+        ports.add(tp)   # an explicitly requested port is always scanned
+    if not ports:
+        ports = {443, 80}
+    return [(host, p) for p in sorted(ports)]
 
 
 def _fetch(url: str) -> tuple[int, dict[str, str], str]:

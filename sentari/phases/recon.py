@@ -13,6 +13,7 @@ import socket
 import time
 import urllib.error
 import urllib.request
+from typing import Optional
 from urllib.parse import urlparse
 
 from ..concurrency import pmap
@@ -32,6 +33,19 @@ def _hostname(target: str) -> str:
     if "://" in target:
         return urlparse(target).hostname or target
     return target.split("/")[0].split(":")[0]
+
+
+def target_port(target: str) -> Optional[int]:
+    """Return the explicit port in the target (URL or host:port), or None."""
+    if "://" in target:
+        u = urlparse(target)
+        return u.port or (443 if u.scheme == "https" else 80)
+    hostpart = target.split("/")[0]
+    if hostpart.count(":") == 1:
+        _, _, p = hostpart.partition(":")
+        if p.isdigit():
+            return int(p)
+    return None
 
 
 class ReconPhase(Phase):
@@ -58,7 +72,9 @@ class ReconPhase(Phase):
         ctx.shared["ips"] = ips
         ctx.shared["open_ports"] = open_ports
 
-        for port in sorted(p for p in open_ports if p in WEB_PORTS):
+        tp = target_port(ctx.target)
+        fp_ports = sorted(p for p in open_ports if p in WEB_PORTS or p == tp)
+        for port in fp_ports:
             self._web_fingerprint(ctx, result, host, port)
 
     # --- DNS ---
@@ -83,7 +99,10 @@ class ReconPhase(Phase):
 
     # --- built-in TCP connect scan ---
     def _builtin_portscan(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[int]:
-        ports = ctx.options.get("ports", DEFAULT_PORTS)
+        ports = list(ctx.options.get("ports", DEFAULT_PORTS))
+        tp = target_port(ctx.target)
+        if tp and tp not in ports:
+            ports.append(tp)  # always probe the explicitly requested port
 
         def check(port: int) -> tuple[int, bool, float]:
             t0 = time.monotonic()

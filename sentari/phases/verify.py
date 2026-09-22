@@ -27,7 +27,9 @@ _SIGNATURES = [
     ("/.git/config", re.compile(r"\[core\]", re.I), False),
     ("/.git/HEAD", re.compile(r"^ref:\s", re.I | re.M), False),
     ("/.env", re.compile(r"^\s*[A-Z0-9_]+\s*=", re.M), True),
-    ("/.svn/", re.compile(r"."), False),
+    # .svn/entries starts with a bare format-number line; a catch-all HTML page
+    # will not, so this avoids confirming an app's fallback page as an exposure.
+    ("/.svn/entries", re.compile(r"^\d+\s*$", re.M), False),
     ("/.DS_Store", re.compile(r"Bud1|\x00\x00\x00", re.S), False),
 ]
 

@@ -4,6 +4,12 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.3.1] - 2026-09-22
+
+### Fixed
+- **Explicit target port is now always scanned.** `recon` and `scanning` honor the port in a `host:port` or URL target (`recon.target_port`), instead of only scanning the ports recon happened to discover. Found while testing a real app on a non-default port.
+- **Verifier no longer confirms `/.svn/entries` from a catch-all page.** The signature required any content; it now requires the bare format-number line a real entries file starts with, so an app's fallback 200 is not escalated.
+
 ## [0.3.0] - 2026-09-22
 
 ### Added
