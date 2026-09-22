@@ -97,8 +97,8 @@ pip install ".[ai,browser,api]"     # several at once
 | `browser` | `pip install ".[browser]"` then `playwright install chromium` | client-side DAST: reflected/DOM/stored XSS, clickjacking, CSRF (`--browser`) |
 | `api` | `pip install ".[api]"` | reading **YAML** OpenAPI/Swagger specs (`--openapi file.yaml`); JSON specs work without it |
 | `pdf` | `pip install ".[pdf]"` | PDF reports (`--pdf report.pdf`) |
-| `cloud` | `pip install ".[cloud]"` | cloud asset discovery (`--cloud aws|azure|gcp`) |
-| `cloud-audit` | `pip install ".[cloud-audit]"` | Prowler misconfiguration audit (`--cloud-audit aws`) |
+| `cloud` | `pip install ".[cloud]"` | cloud asset discovery (`--cloud aws|azure|gcp`); needs credentials, see [Cloud setup](#cloud-setup-aws--azure--gcp) |
+| `cloud-audit` | `pip install ".[cloud-audit]"` | Prowler misconfiguration audit (`--cloud-audit aws|azure|gcp|kubernetes`); see [Cloud setup](#cloud-setup-aws--azure--gcp) |
 | `openvas` | `pip install ".[openvas]"` | pulling results from a Greenbone/OpenVAS console (`--openvas`) |
 | `privesc` | `pip install ".[privesc]"` | SSH privilege-escalation enumeration (`--privesc`) |
 | `proxy` | `pip install ".[proxy]"` | HTTP capture and live tampering (`--proxy`, `--proxy-web`) |
@@ -156,6 +156,52 @@ gh auth login
 
 ---
 
+## Cloud setup (AWS / Azure / GCP)
+
+Sentari has two cloud features, and both use **your own cloud credentials against
+your own account**. They enumerate and audit; they do not attack anything.
+
+- `--cloud aws|azure|gcp` lists internet-facing assets so you can bring the ones
+  you own into scope. Install `pip install ".[cloud]"`.
+- `--cloud-audit aws|azure|gcp|kubernetes` runs a Prowler misconfiguration audit.
+  Install `pip install prowler`.
+
+Each provider needs its normal credentials in the environment:
+
+**AWS** uses the standard boto3 credential chain:
+
+```bash
+pip install ".[cloud]"
+aws configure                # or export AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_PROFILE
+sentari --cloud aws
+```
+
+**Azure** needs a subscription id plus a login (via `az login`, a managed
+identity, or the `AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_CLIENT_SECRET`
+service-principal variables):
+
+```bash
+pip install ".[cloud]"
+az login                                       # or set the service-principal vars
+export AZURE_SUBSCRIPTION_ID="<your-subscription-id>"
+sentari --cloud azure
+```
+
+**GCP** needs a project id and application-default credentials (a service-account
+key file, or `gcloud auth application-default login`):
+
+```bash
+pip install ".[cloud]"
+export GOOGLE_CLOUD_PROJECT="<your-project-id>"
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"   # or: gcloud auth application-default login
+sentari --cloud gcp
+```
+
+If a credential or env var is missing, Sentari prints exactly what to set (for
+example `set AZURE_SUBSCRIPTION_ID`) rather than failing silently.
+
+---
+
 ## "I just want to do X" quick picks
 
 | Goal | Install | Run |
@@ -165,6 +211,7 @@ gh auth login
 | API testing from a spec | core (+ `".[api]"` for YAML) | add `--openapi spec.json --api-tests` |
 | AI triage of findings | `pip install ".[ai]"` + a provider key | add `--ai --ai-provider openai` |
 | Static code scan | `pip install semgrep` | `--sast ./code` |
+| Cloud posture check | `pip install ".[cloud]"` + creds ([Cloud setup](#cloud-setup-aws--azure--gcp)) | `--cloud azure` or `--cloud-audit aws` |
 | Full autonomous run | the above + `--no-safe-mode` | `--autonomous --exploit-confirm "I AM AUTHORIZED TO TEST THIS TARGET"` |
 
 ---
