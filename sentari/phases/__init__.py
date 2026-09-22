@@ -1,14 +1,17 @@
 """Phase registry. Phases run in ascending `number` order.
 
 Add new phases here one at a time as they are implemented:
-  2 = scanning/enumeration, 3 = vuln assessment / client-side DAST,
+  2 = scanning/enumeration / SAST, 3 = vuln assessment / client-side DAST / API tests,
   4 = verification; gated exploitation / post-exploitation stay off the list.
 """
 from .base import Phase, PhaseContext
 from .osint import OSINTPhase
 from .recon import ReconPhase
 from .scanning import ScanPhase
+from .sast import SASTPhase
 from .vuln import VulnPhase
+from .apitest import APITestPhase
+from .proxy_ingest import ProxyIngestPhase
 from .browser import BrowserPhase
 from .verify import VerifyPhase
 
@@ -16,11 +19,14 @@ PHASES: list[type[Phase]] = [
     OSINTPhase,
     ReconPhase,
     ScanPhase,
+    SASTPhase,
     VulnPhase,
+    APITestPhase,
+    ProxyIngestPhase,
     BrowserPhase,
     VerifyPhase,
 ]
 
 __all__ = ["Phase", "PhaseContext", "PHASES",
-           "OSINTPhase", "ReconPhase", "ScanPhase", "VulnPhase", "BrowserPhase",
-           "VerifyPhase"]
+           "OSINTPhase", "ReconPhase", "ScanPhase", "SASTPhase", "VulnPhase",
+           "APITestPhase", "ProxyIngestPhase", "BrowserPhase", "VerifyPhase"]

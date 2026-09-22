@@ -67,8 +67,19 @@ Sentari runs real security tools and reports only what they actually found. Ever
 
 ### 🖥️ Client-side DAST (`--browser`)
 - Drives a headless browser (Playwright) against the discovered URLs
-- Reflected XSS confirmed by actual execution (a unique payload must set a JS marker), plus password-over-HTTP and mixed-content checks
+- Reflected XSS, DOM-based XSS, and prototype pollution confirmed by actual execution (a payload must set a JS marker or pollute a property), plus clickjacking, token-less CSRF forms, password-over-HTTP, and mixed content
 - Off by default; each finding carries the browser observation as evidence
+
+### 🔑 API security and JWT (`--api-tests`, `--jwt`)
+- Offline JWT audit: `alg=none`, weak HMAC secret (cracked from a wordlist), missing/expired expiry, sensitive payload claims
+- Read-only endpoint checks over the ingested API surface: JWTs seen in responses, unauthenticated access, missing rate limiting, state-changing methods. Sends only GET/OPTIONS
+
+### 🧬 SAST (`--sast PATH`)
+- Runs semgrep over a source tree and maps results (with CWE/OWASP) into findings, alongside the dynamic phases
+
+### 🕸️ HTTP proxy capture (`--proxy`, `--proxy-ingest`)
+- `--proxy PORT` runs an mitmproxy capture; route a browser or app through it to record real traffic
+- `--proxy-ingest FILE` analyzes the capture (JSONL or HAR) for JWT weaknesses, credentials/secrets sent in cleartext, and insecure cookies
 
 ### ✅ Verification (safe exploitation)
 - Read-only confirmation of findings, such as fetching an exposed `.git/config` to prove it is real
@@ -157,6 +168,7 @@ Each package has one job:
 | `threatintel` / `classify` | CISA KEV correlation; rule-based service classification |
 | `openvas` / `nexpose` / `privesc` | External scanner connectors; SSH privilege-escalation enumeration |
 | `openapi` / `browser` / `sandbox` | API-spec ingestion; headless-browser DAST; Docker sandbox for gated tools |
+| `jwt_audit` / `sast` / `proxy` | Offline JWT auditing; semgrep SAST parsing; mitmproxy capture analysis |
 | `autofix` | Remediation guide and optional draft PR (suggest-only) |
 | `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
@@ -201,8 +213,11 @@ pip install ".[postgres]"     # Postgres run store
 | 0 | OSINT | passive subdomain enumeration (subfinder/amass/theHarvester) + Shodan lookup |
 | 1 | Reconnaissance | DNS, port and service discovery (built-in / `naabu` / `nmap`), web fingerprint (built-in / `httpx`) |
 | 2 | Scanning | security headers, TLS checks, version disclosure, content discovery |
+| 2 | SAST (`--sast`) | semgrep over a source tree, mapped to findings with CWE/OWASP |
 | 3 | Vulnerability assessment | `nuclei` templates (with CVSS scoring), gated `sqlmap`, optional OpenVAS/Nexpose |
-| 3 | Client-side DAST (`--browser`) | headless-browser reflected-XSS (confirmed by execution) and DOM checks |
+| 3 | API security (`--api-tests`) | JWT audit, rate-limit, auth-exposure, methods (GET/OPTIONS only) |
+| 3 | Proxy ingest (`--proxy-ingest`) | analyze captured HTTP traffic (mitmproxy JSONL or HAR) |
+| 3 | Client-side DAST (`--browser`) | reflected/DOM XSS + prototype pollution (confirmed by execution), clickjacking, CSRF |
 | 4 | Verification | read-only confirmation of findings, secrets redacted |
 | 5 | Reporting | evidence-linked HTML, JSON, XML, PDF |
 | 6 | Retest | diff a fresh scan against a prior run |
@@ -232,6 +247,9 @@ sentari --list-phases
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
 | `--openvas` / `--nexpose` | Pull results from a configured OpenVAS (`GVM_*`) or Nexpose/InsightVM (`NEXPOSE_*`) instance. |
 | `--openapi SRC` (+ `--openapi-base-url`) | Ingest an OpenAPI/Swagger/Postman spec; its endpoints become scan targets. |
+| `--api-tests` / `--jwt TOKEN` | Read-only API-security checks / audit a single JWT offline. |
+| `--sast PATH` (+ `--sast-config`) | Static analysis over a source tree with semgrep. |
+| `--proxy PORT` / `--proxy-ingest FILE` | Capture HTTP traffic via mitmproxy / analyze a capture (JSONL or HAR). |
 | `--browser` | Client-side DAST with a headless browser (needs Playwright). |
 | `--sandbox` (+ `--sandbox-image`) | Run the gated offensive tools inside a disposable Docker container. |
 | `--autofix FILE` / `--autofix-pr` (+ `--autofix-repo`) | Write a remediation guide; optionally open it as a draft PR. |

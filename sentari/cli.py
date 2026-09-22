@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +65,19 @@ def build_parser() -> argparse.ArgumentParser:
                    help="OpenAPI/Swagger/Postman spec (file or URL); its endpoints become scan targets.")
     p.add_argument("--openapi-base-url",
                    help="Override the base URL for the ingested API endpoints.")
+    p.add_argument("--proxy", type=int, metavar="PORT",
+                   help="Start an mitmproxy capture on PORT (route traffic through it), then exit.")
+    p.add_argument("--proxy-out", default="sentari-flows.jsonl",
+                   help="Capture file for --proxy (default sentari-flows.jsonl).")
+    p.add_argument("--proxy-ingest", metavar="FILE",
+                   help="Analyze a captured mitmproxy JSONL or HAR file for issues.")
+    p.add_argument("--sast", metavar="PATH",
+                   help="Static analysis (SAST) over a source tree with semgrep.")
+    p.add_argument("--sast-config", default="auto",
+                   help="semgrep config/ruleset for --sast (default: auto).")
+    p.add_argument("--api-tests", action="store_true",
+                   help="Read-only API-security checks (JWT audit, rate-limit, auth exposure).")
+    p.add_argument("--jwt", metavar="TOKEN", help="Audit a specific JWT offline.")
     p.add_argument("--browser", action="store_true",
                    help="Client-side DAST: drive a headless browser (needs Playwright).")
     p.add_argument("--sandbox", action="store_true",
@@ -183,6 +196,26 @@ def main(argv: list[str] | None = None) -> int:
         serve(runs_dir=args.runs_dir, port=args.port, host=args.host, db=args.db)
         return 0
 
+    if args.proxy:
+        import shutil
+        import subprocess
+        from . import proxy as proxy_mod
+        if not shutil.which("mitmdump"):
+            print("error: mitmproxy not installed (pip install mitmproxy)", file=sys.stderr)
+            return 5
+        addon = str(Path(args.proxy_out).with_suffix(".addon.py"))
+        proxy_mod.write_addon(addon)
+        import os as _os
+        env = {**_os.environ, "SENTARI_PROXY_OUT": args.proxy_out}
+        print(f"Starting mitmproxy on :{args.proxy}. Route your browser/app through this proxy.")
+        print(f"Capturing to {args.proxy_out}. Ctrl-C to stop, then analyze with:")
+        print(f"  sentari <target> --scope <target> --authorized --proxy-ingest {args.proxy_out}")
+        try:
+            subprocess.run(["mitmdump", "-s", addon, "--listen-port", str(args.proxy)], env=env)
+        except KeyboardInterrupt:
+            print("\nstopped.")
+        return 0
+
     if args.list_models:
         from .ai.catalog import list_models
         for provider, models in list_models().items():
@@ -247,6 +280,15 @@ def main(argv: list[str] | None = None) -> int:
         options["openapi"] = args.openapi
         if args.openapi_base_url:
             options["openapi_base_url"] = args.openapi_base_url
+    if args.sast:
+        options["sast_path"] = args.sast
+        options["sast_config"] = args.sast_config
+    if args.proxy_ingest:
+        options["proxy_ingest"] = args.proxy_ingest
+    if args.api_tests:
+        options["api_tests"] = True
+    if args.jwt:
+        options["jwt"] = args.jwt
     if args.browser:
         options["browser"] = True
     if args.sandbox:

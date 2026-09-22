@@ -4,6 +4,16 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.8.0] - 2026-09-22
+
+Strix-inspired coverage, built original and evidence-first.
+
+### Added
+- **JWT / API security** (`jwt_audit.py`, `phases/apitest.py`, `--api-tests`, `--jwt`): offline JWT auditing (alg=none, weak HMAC secret cracked from a wordlist, missing/expired exp, sensitive payload) plus read-only API checks (JWT seen in responses, unauthenticated access, no rate limiting, state-changing methods). Sends only GET/OPTIONS; no mutation.
+- **Richer browser attacks** (`browser.py`): added DOM-based XSS and client-side prototype pollution, both confirmed by actual execution, plus clickjacking (missing X-Frame-Options / CSP frame-ancestors) and a token-less POST-form CSRF candidate, alongside the existing reflected-XSS check.
+- **SAST** (`sast.py`, `phases/sast.py`, `--sast PATH`, `--sast-config`): runs semgrep over a source tree and maps results (with CWE/OWASP) to findings. Graceful without semgrep.
+- **HTTP proxy capture** (`proxy.py`, `phases/proxy_ingest.py`, `--proxy PORT`, `--proxy-ingest FILE`): a mitmproxy addon records real traffic as JSONL; the analyzer (JSONL or HAR) reports JWT weaknesses, credentials/secrets sent in cleartext, and insecure cookies from the captured flows.
+
 ## [0.7.0] - 2026-09-22
 
 ### Added
