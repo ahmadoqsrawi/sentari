@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +36,24 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Exact acknowledgement string required to enable exploitation.")
     p.add_argument("--exfil-sim", action="store_true",
                    help="Bounded, redacted proof-of-impact read of confirmed exposures.")
+    p.add_argument("--postexploit", action="store_true",
+                   help="Enable gated post-exploitation (lateral movement, AD collection).")
+    p.add_argument("--postexploit-confirm", metavar="TEXT",
+                   help="Exact acknowledgement string required to enable post-exploitation.")
+    p.add_argument("--postexploit-user", help="Credential username for post-exploitation.")
+    p.add_argument("--postexploit-pass", help="Credential password for post-exploitation.")
+    p.add_argument("--postexploit-domain", help="AD/SMB domain for post-exploitation.")
+    p.add_argument("--postexploit-dc", help="Domain controller IP for BloodHound collection.")
+    p.add_argument("--bloodhound", action="store_true",
+                   help="Collect AD data with bloodhound-python during post-exploitation.")
+    p.add_argument("--openvas", action="store_true",
+                   help="Pull results from a configured Greenbone/OpenVAS instance (GVM_* env).")
+    p.add_argument("--asset-value", choices=["low", "medium", "high", "critical"],
+                   default="medium", help="Asset criticality for business-impact scoring.")
+    p.add_argument("--correlate", action="store_true",
+                   help="Report findings seen across more than one target in --db/--runs-dir, then exit.")
+    p.add_argument("--trends", action="store_true",
+                   help="Show how findings change across stored runs in --db/--runs-dir, then exit.")
     p.add_argument("--wordlist", help="Wordlist path for gobuster content discovery (Phase 2).")
     p.add_argument("--sqlmap-url", help="Explicit URL to test with sqlmap (Phase 3, gated).")
     p.add_argument("--dry-run", action="store_true", help="Show what would run; execute nothing.")
@@ -64,6 +82,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Do not flag unusual findings for manual review.")
     p.add_argument("--no-heuristics", action="store_true",
                    help="Do not flag error/leak patterns as candidates for manual review.")
+    p.add_argument("--no-threatintel", action="store_true",
+                   help="Do not correlate finding CVEs against the CISA KEV catalog.")
     p.add_argument("--no-compliance", action="store_true",
                    help="Do not tag findings with OWASP/CWE/NIST references.")
     p.add_argument("--autopilot", action="store_true",
@@ -117,6 +137,19 @@ def _analysis_to_dict(a) -> dict:
             "error": a.error}
 
 
+def _load_stored_runs(db: str | None, runs_dir: str | None) -> dict:
+    """Load saved runs from a DB (preferred) or a runs directory."""
+    if db:
+        from .db import RunStore
+        store = RunStore(db)
+        try:
+            return store.all_runs()
+        finally:
+            store.close()
+    from .web.server import _load_runs
+    return _load_runs(Path(runs_dir or "runs"))
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -146,6 +179,24 @@ def main(argv: list[str] | None = None) -> int:
         print("\nBring the endpoints you own into scope, then scan them with --scope.")
         return 0
 
+    if args.correlate or args.trends:
+        runs = _load_stored_runs(args.db, args.runs_dir)
+        if not runs:
+            print("No stored runs found (use --db or --runs-dir with saved runs).")
+            return 0
+        if args.correlate:
+            from .correlation import correlate
+            rows = correlate(runs)
+            if not rows:
+                print("No finding appears across more than one target.")
+            for row in rows:
+                print(f"[{row['severity']}] {row['finding']}  ->  {len(row['targets'])} targets: "
+                      + ", ".join(row["targets"]))
+        if args.trends:
+            from .trends import render, trend_rows
+            print(render(trend_rows(runs)))
+        return 0
+
     if args.list_phases:
         for cls in sorted(PHASES, key=lambda c: c.number):
             print(f"  {cls.number}. {cls.name:12s} {cls.description}")
@@ -163,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
         options["wordlist"] = args.wordlist
     if args.sqlmap_url:
         options["sqlmap_url"] = args.sqlmap_url
+    if args.openvas:
+        options["openvas"] = True
 
     if args.exploit:
         from .phases.exploit import CONFIRM_STRING
@@ -176,6 +229,27 @@ def main(argv: list[str] | None = None) -> int:
         print("!! EXPLOITATION ENABLED: authorized, non-production targets only. !!",
               file=sys.stderr)
         options["exploit"] = {"modules": args.exploit_module, "exfil_sim": args.exfil_sim}
+
+    if args.postexploit:
+        from .phases.postexploit import CONFIRM_STRING as PE_CONFIRM
+        if not args.no_safe_mode:
+            print("error: --postexploit requires --no-safe-mode", file=sys.stderr)
+            return 6
+        if args.postexploit_confirm != PE_CONFIRM:
+            print(f'error: --postexploit requires --postexploit-confirm "{PE_CONFIRM}"',
+                  file=sys.stderr)
+            return 6
+        if not args.postexploit_user:
+            print("error: --postexploit requires --postexploit-user (and usually --postexploit-pass)",
+                  file=sys.stderr)
+            return 6
+        print("!! POST-EXPLOITATION ENABLED: authorized, non-production targets only. !!",
+              file=sys.stderr)
+        options["postexploit"] = {
+            "username": args.postexploit_user, "password": args.postexploit_pass or "",
+            "domain": args.postexploit_domain or "", "dc_ip": args.postexploit_dc or "",
+            "bloodhound": args.bloodhound,
+        }
 
     if args.enqueue:
         from .tasks import HAVE_CELERY, run_assessment_task
@@ -244,6 +318,7 @@ def main(argv: list[str] | None = None) -> int:
                 safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
                 dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
                 apply_anomaly=not args.no_anomaly, apply_heuristics=not args.no_heuristics,
+                apply_threatintel=not args.no_threatintel, asset_value=args.asset_value,
             )
     except AuthorizationError as e:
         print(f"REFUSED: {e}", file=sys.stderr)

@@ -28,6 +28,8 @@ def run_assessment(
     apply_compliance: bool = True,
     apply_anomaly: bool = True,
     apply_heuristics: bool = True,
+    apply_threatintel: bool = True,
+    asset_value: str = "medium",
 ) -> list[PhaseResult]:
     """Authorize the target, run the selected phases in order, tag compliance.
     Raises AuthorizationError if the target is not authorized/in scope."""
@@ -54,6 +56,13 @@ def run_assessment(
         ctx.runner = ToolRunner(timeout, dry_run)
         results.append(ExploitPhase().run(ctx))
 
+    # Gated post-exploitation (lateral movement, AD collection). Same gates as
+    # exploitation: never runs by accident and never in safe mode.
+    if not safe_mode and (options or {}).get("postexploit"):
+        from .phases.postexploit import PostExploitPhase
+        ctx.runner = ToolRunner(timeout, dry_run)
+        results.append(PostExploitPhase().run(ctx))
+
     if apply_compliance:
         from . import compliance
         compliance.apply(results)
@@ -63,6 +72,15 @@ def run_assessment(
     if apply_heuristics:
         from . import heuristics
         heuristics.apply(results)
+    if apply_threatintel:
+        from . import threatintel
+        threatintel.apply(results)
+
+    # Prioritization aids (always on): weight by asset value, tag likelihood x
+    # impact. These rate the real findings; they never add findings.
+    from . import prioritize
+    prioritize.apply_business_impact(results, asset_value)
+    prioritize.apply_risk(results)
     return results
 
 
