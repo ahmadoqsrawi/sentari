@@ -9,33 +9,49 @@ metadata:
 
 # Network and infrastructure scanning with Sentari
 
-Always pass `--scope` and `--authorized`. Scope can be a host or a CIDR.
+Discover what a host or network actually exposes, with every result backed by a real probe. Install and the full flag set are in the **penetration-testing-with-sentari** skill.
 
-## Recon and scanning
+## 1. Confirm authorization and scope
+
+- The host or range is the user's or explicitly authorized. Scope can be a host or a CIDR.
+- Wide port ranges and masscan are noisy; confirm the network owner is fine with active scanning.
+- Always pass `--scope <host-or-CIDR>` and `--authorized`.
+
+## 2. Prerequisites
+
+Sentari scans with a built-in TCP-connect scanner out of the box. Install any of `nmap`, `naabu`, `masscan`, `httpx` on PATH for faster, richer discovery; Sentari picks them up automatically and reports which it used.
+
+## 3. Recon and scanning
 
 ```bash
 sentari 203.0.113.10 --scope 203.0.113.0/24 --authorized --phases recon,scanning --json infra.json
 ```
 
-- **recon**: DNS resolution, port and service discovery, web fingerprint. Scanner preference is nmap, then naabu, then masscan (only outside safe mode, it needs root), then a built-in TCP-connect scan. Each open port is classified (web, database, mail, remote-access, and so on).
+- **recon**: DNS resolution, port and service discovery, web fingerprint. Scanner preference is nmap, then naabu, then masscan (only outside safe mode, it needs root), then the built-in scan. Each open port is classified (web, database, mail, remote-access, and so on).
 - **scanning**: security headers, TLS inspection (including handshakes against TLS 1.0/1.1 to spot legacy protocols), version disclosure, and content discovery for exposed sensitive paths.
 
-## Faster discovery with real tools
-
-Install any of `nmap`, `naabu`, `masscan`, `httpx` on PATH and Sentari uses them automatically. masscan runs only with `--no-safe-mode` (it needs root):
+Faster discovery with masscan (needs `--no-safe-mode` and root):
 
 ```bash
 sentari 203.0.113.10 --scope 203.0.113.10 --authorized --no-safe-mode --phases recon
 ```
 
-## Threat intel on discovered services
-
-Finding CVEs are correlated against the CISA KEV catalog automatically (disable with `--no-threatintel`); a match is tagged as known-exploited in the report.
-
-## OSINT for external attack surface
+## 4. External attack surface (OSINT)
 
 ```bash
 sentari example.com --scope example.com --authorized --phases osint
 ```
 
-Passive subdomain enumeration (subfinder, amass, theHarvester) and Shodan lookups when the tools and `SHODAN_API_KEY` are present. Discovered assets are recorded for review, never scanned automatically.
+Passive subdomain enumeration (subfinder, amass, theHarvester) and Shodan lookups when the tools and `SHODAN_API_KEY` are present. Discovered assets are recorded for review, never scanned automatically; bring the ones in scope into a later run.
+
+## 5. Threat intel on discovered services
+
+Finding CVEs are correlated against the CISA KEV catalog automatically (disable with `--no-threatintel`); a match is tagged known-exploited in the report. See the **risk-prioritization** skill for ranking.
+
+## 6. Review and verify
+
+Read the console report, then `infra.json`. Each open-port and service finding cites the probe in `evidence_ids`; cross-check before reporting. An open port is not a vulnerability by itself, so describe exposure honestly.
+
+## 7. Next steps
+
+Feed web services found here into the **web-app-penetration-testing** skill, and persist runs for trend and delta tracking with **retest-and-monitor**.

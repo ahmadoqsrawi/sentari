@@ -9,18 +9,18 @@ metadata:
 
 # Reporting and dashboards with Sentari
 
-Always pass `--scope` and `--authorized` for a scan. Reporting reads the results a scan produced.
+Turn an assessment into reports, a dashboard, and monitoring exports. Reporting reads the results a scan produced; the scan itself still needs `--scope` and `--authorized`. Install and the full flag set are in the **penetration-testing-with-sentari** skill.
 
-## Report files
+## 1. Write report files
 
 ```bash
 sentari https://app.example.com --scope app.example.com --authorized \
   --html report.html --json report.json --xml report.xml --pdf report.pdf
 ```
 
-- HTML is self-contained. JSON carries every finding with its evidence. XML suits importers. PDF needs `pip install ".[pdf]"`.
+HTML is self-contained. JSON carries every finding with its evidence (use it for scripting). XML suits importers. PDF needs `pip install ".[pdf]"`.
 
-## Executive dashboard (read-only)
+## 2. Serve the executive dashboard (read-only)
 
 ```bash
 sentari https://app.example.com --scope app.example.com --authorized --save-run runs/
@@ -29,7 +29,7 @@ sentari --serve --runs-dir runs/            # or: --serve --db sentari.db
 
 The dashboard leads with KPI cards (runs, findings, critical/high, known-exploited, targets), a severity distribution, a findings-over-time trend, a risk prioritization matrix, and OWASP compliance coverage. It binds to localhost by default; use `--host 0.0.0.0` only inside a container you control.
 
-## SIEM export
+## 3. Export to a SIEM
 
 ```bash
 sentari https://app.example.com --scope app.example.com --authorized \
@@ -38,10 +38,10 @@ sentari https://app.example.com --scope app.example.com --authorized \
 
 `--siem-type` is one of webhook, splunk, elasticsearch, syslog. The token can also come from `SENTARI_SIEM_TOKEN`.
 
-## Prometheus metrics
+## 4. Prometheus and Grafana
 
 The dashboard exposes `/metrics` for Prometheus; a Grafana dashboard ships under `deploy/grafana/`.
 
-## Turn a report into fixes
+## 5. Present honestly, then act
 
-Use the fix-security-vulnerabilities-with-sentari skill to generate a remediation guide or a draft PR from the same findings.
+Group findings by severity and separate confirmed findings from candidates when you summarize. Turn the same findings into a remediation guide or draft PR with **fix-security-vulnerabilities-with-sentari**, rank them with **risk-prioritization**, and track them over time with **retest-and-monitor**.

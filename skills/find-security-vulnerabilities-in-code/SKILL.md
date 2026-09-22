@@ -9,26 +9,42 @@ metadata:
 
 # Static analysis with Sentari
 
-SAST reads code; it does not touch a running target. It still goes through the same engine, so results land in the same report and carry evidence (semgrep's own output).
+SAST reads code; it does not touch a running target. It runs through the same engine, so results land in the same report and carry evidence (semgrep's own output). Install and the full flag set are in the **penetration-testing-with-sentari** skill.
 
-## Install and run
+## 1. Confirm scope
+
+- The code is the user's or they are authorized to review it.
+- SAST is read-only and safe to run on any checkout; still pass `--scope` and `--authorized` because the engine requires them.
+
+## 2. Prerequisites
 
 ```bash
-pip install ".[dev]" && pip install semgrep   # semgrep is the SAST engine
+pip install semgrep       # the SAST engine
+```
+
+Without semgrep on PATH the phase reports that and adds nothing (it never fabricates).
+
+## 3. Run over a source tree
+
+```bash
 sentari localhost --scope localhost --authorized --phases sast --sast ./path/to/code
 ```
 
-`--sast PATH` scans that tree. `--sast-config <ruleset>` picks a semgrep config (default `auto`). Without semgrep installed, the phase reports that and adds nothing (it never fabricates).
+`--sast PATH` scans that tree. `--sast-config <ruleset>` picks a semgrep config (default `auto`). Large trees take a few minutes.
 
-## Combine with a dynamic scan
+## 4. Combine with a dynamic scan
 
-Run SAST alongside the dynamic phases when you have both code and a running instance:
+When you have both the code and a running instance, run SAST alongside the dynamic phases for white-box depth:
 
 ```bash
 sentari https://staging.example.com --scope staging.example.com --authorized \
   --sast ./repo --browser --html report.html
 ```
 
-## Output
+## 5. Review and verify
 
-Each semgrep result becomes a finding with the rule id, file:line location, severity (semgrep ERROR/WARNING/INFO mapped to high/medium/low), and CWE/OWASP references when the rule provides them. Turn the findings into a remediation guide or draft PR with the **fix-security-vulnerabilities-with-sentari** skill.
+Each semgrep result becomes a finding with the rule id, `file:line` location, severity (semgrep ERROR/WARNING/INFO mapped to high/medium/low), and CWE/OWASP references when the rule provides them. SAST findings are static matches; open the cited file and line to confirm exploitability before reporting.
+
+## 6. Fix
+
+Turn the findings into a remediation guide or a draft PR with the **fix-security-vulnerabilities-with-sentari** skill, then re-run with **retest-and-monitor** to confirm the rule no longer matches.
