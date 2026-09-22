@@ -39,6 +39,7 @@ class OSINTPhase(Phase):
             subs |= self._subfinder(ctx, result, host)
             subs |= self._amass(ctx, result, host)
             subs |= self._theharvester(ctx, result, host)
+            subs |= self._ai_resolve(ctx, result, host)
             if subs:
                 ev = ctx.runner.record_internal(["osint-subdomains", host], 0,
                                                 "\n".join(sorted(subs)))
@@ -53,6 +54,57 @@ class OSINTPhase(Phase):
             result.notes.append("Target is an IP; skipping subdomain enumeration.")
 
         self._shodan(ctx, result, host)
+        self._ai_summary(ctx, result, host)
+
+    # --- AI-proposed subdomains, confirmed by DNS (grounded) ---
+    def _ai_resolve(self, ctx, result, host) -> set[str]:
+        provider = ctx.options.get("ai_osint_provider")
+        if not provider:
+            return set()
+        from ..ai import osint as ai_osint
+        from ..concurrency import pmap
+        labels = ai_osint.seed_subdomains(provider, host)
+        if not labels:
+            return set()
+        known = set(ctx.shared.get("subdomains", []))
+        candidates = [f"{lbl}.{host}" for lbl in labels if f"{lbl}.{host}" not in known]
+
+        def resolve(fqdn):
+            try:
+                return fqdn, sorted({i[4][0] for i in socket.getaddrinfo(fqdn, None)})
+            except OSError:
+                return fqdn, []
+
+        confirmed: set[str] = set()
+        for fqdn, ips in pmap(resolve, candidates, workers=16):
+            if ips:
+                confirmed.add(fqdn)
+                ev = ctx.runner.record_internal(["ai-osint-dns", fqdn], 0,
+                                                f"{fqdn} -> {', '.join(ips)}")
+                result.findings.append(Finding(
+                    title=f"Subdomain confirmed (AI-seeded, DNS-verified): {fqdn}",
+                    severity=Severity.INFO,
+                    description=f"An AI-proposed label resolved: {fqdn} -> {', '.join(ips)}. "
+                                "The name was a model guess; DNS confirmed it exists.",
+                    evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+                    location=fqdn, metadata={"ips": ips, "source": "ai-seeded"}))
+        result.notes.append(f"AI OSINT: proposed {len(labels)} label(s), "
+                            f"{len(confirmed)} resolved.")
+        return confirmed
+
+    # --- AI analyst summary of the real OSINT surface ---
+    def _ai_summary(self, ctx, result, host) -> None:
+        provider = ctx.options.get("ai_osint_provider")
+        if not provider:
+            return
+        from ..ai import osint as ai_osint
+        assets = sorted(set(ctx.shared.get("subdomains", [])))
+        ports = []
+        for f in result.findings:
+            ports += (f.metadata or {}).get("shodan_ports", [])
+        text = ai_osint.summarize(provider, host, assets, ports)
+        if text:
+            result.notes.append(f"AI OSINT summary: {text}")
 
     def _lines(self, ev_stdout: str) -> set[str]:
         return {m.group(0).lower() for line in ev_stdout.splitlines()
