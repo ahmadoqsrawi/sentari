@@ -1,0 +1,71 @@
+"""Phase 3 (client-side): headless-browser DAST.
+
+Runs only when requested with --browser. Drives a real headless browser against
+the discovered web URLs (and any API endpoints) to find client-side issues,
+confirming reflected XSS by actual execution rather than by reflection alone.
+Off by default; every finding carries the browser observation as evidence.
+"""
+from __future__ import annotations
+
+from ..models import Finding, PhaseResult, Severity
+from .base import Phase, PhaseContext
+from .scanning import _web_targets
+
+_SEV = {"high": Severity.HIGH, "medium": Severity.MEDIUM, "low": Severity.LOW,
+        "info": Severity.INFO}
+
+
+def _urls(ctx: PhaseContext) -> list[str]:
+    out = []
+    for host, port in _web_targets(ctx):
+        scheme = "https" if port in (443, 8443) else "http"
+        out.append(f"{scheme}://{host}:{port}")
+    for u in ctx.shared.get("api_endpoints", []):
+        if u not in out:
+            out.append(u)
+    return out
+
+
+class BrowserPhase(Phase):
+    name = "browser"
+    number = 3
+    description = "Client-side DAST: headless-browser reflected-XSS and DOM checks (--browser)"
+
+    def execute(self, ctx: PhaseContext, result: PhaseResult) -> None:
+        if not ctx.options.get("browser"):
+            return
+        from .. import browser
+        result.tools_available = {"playwright": browser.available()}
+        urls = _urls(ctx)
+        if not urls:
+            result.notes.append("Browser DAST: no web URLs to test.")
+            return
+        checks, err = browser.run_checks(urls, timeout=max(ctx.runner.default_timeout, 15))
+        if err:
+            result.notes.append(f"Browser DAST: {err}")
+        for c in checks:
+            if c["type"] in ("browser-error",):
+                result.notes.append(f"{c['url']}: {c['detail']}")
+                continue
+            ev = ctx.runner.record_internal(["browser-check", c["type"], c["url"]], 0,
+                                            c["evidence"])
+            title = ("Reflected XSS confirmed (browser execution)"
+                     if c["type"] == "reflected-xss" and c["confirmed"]
+                     else c["type"].replace("-", " ").title())
+            result.findings.append(Finding(
+                title=title, severity=_SEV.get(c["severity"], Severity.INFO),
+                description=c["detail"], evidence_ids=[ev.id], target=ctx.target,
+                phase=self.name, location=c["url"],
+                recommendation=_fix(c["type"]),
+                metadata={"browser_check": c["type"], "confirmed": c["confirmed"]}))
+        if not err:
+            result.notes.append(f"Browser DAST checked {min(len(urls), 10)} URL(s).")
+
+
+def _fix(ctype: str) -> str:
+    return {
+        "reflected-xss": "Contextually encode output; add a strict Content-Security-Policy.",
+        "reflected-input": "Encode reflected input; validate and escape on output.",
+        "password-over-http": "Serve the login over HTTPS only; add HSTS.",
+        "mixed-content": "Load all subresources over HTTPS; set upgrade-insecure-requests.",
+    }.get(ctype, "")
