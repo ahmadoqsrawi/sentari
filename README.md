@@ -235,6 +235,44 @@ Browse saved runs in the read-only dashboard:
 sentari --serve --db runs.db     # http://127.0.0.1:8600
 ```
 
+Let the AI agent drive the assessment, with a goal and a chosen provider:
+
+```bash
+export OPENAI_API_KEY=...
+sentari example.com --scope example.com --authorized \
+    --agent --goal "focus on the login and the API"
+```
+
+Use a different provider (each reads its own key env var):
+
+```bash
+export GROQ_API_KEY=...
+sentari example.com --scope example.com --authorized --ai --ai-provider groq
+
+export ANTHROPIC_API_KEY=...
+sentari example.com --scope example.com --authorized --agent --ai-provider anthropic \
+    --ai-model claude-3-5-sonnet-latest
+
+# a local model through Ollama, no key and nothing leaves the host
+sentari example.com --scope example.com --authorized --ai --ai-provider ollama --ai-model llama3.1
+
+# any OpenAI-compatible endpoint that is not built in
+sentari example.com --scope example.com --authorized --ai \
+    --ai-provider acme --ai-base-url https://api.acme.example/v1
+
+sentari --list-models      # see the known models per provider
+```
+
+Ship findings to a SIEM, and scrape metrics with Prometheus:
+
+```bash
+sentari example.com --scope example.com --authorized \
+    --siem-url https://splunk.example:8088/services/collector \
+    --siem-type splunk --siem-token "$SPLUNK_HEC_TOKEN"
+
+sentari --serve --db runs.db   # then scrape http://127.0.0.1:8600/metrics
+```
+
 ## 🔧 Configuration
 
 AI triage reads its key from the environment, or from the matching `--ai-*` flags:
