@@ -77,6 +77,17 @@ Sentari runs real security tools and reports only what they actually found. Ever
 ### 🧬 SAST (`--sast PATH`)
 - Runs semgrep over a source tree and maps results (with CWE/OWASP) into findings, alongside the dynamic phases
 
+### ☁️ Cloud misconfiguration audit (`--cloud-audit`)
+- Runs Prowler against your own AWS/Azure/GCP/Kubernetes account and maps failed checks (severity, resource, region) into findings
+
+### 🕸️ Graph of agents (`--graph`)
+- Specialized nodes (recon, assess, verify) share one blackboard so later nodes see earlier discoveries
+- Multiple targets (`--graph-target`) run in parallel with a cross-asset correlation pass; every node runs the real phases
+
+### 🧪 Custom PoC runtime (`--poc`, gated)
+- Runs an operator-supplied Python proof-of-concept against the target inside a disposable Docker container
+- A finding is recorded only when the PoC prints its own success marker; Sentari never decides that an exploit worked
+
 ### 🕸️ HTTP proxy capture (`--proxy`, `--proxy-ingest`)
 - `--proxy PORT` runs an mitmproxy capture; route a browser or app through it to record real traffic
 - `--proxy-ingest FILE` analyzes the capture (JSONL or HAR) for JWT weaknesses, credentials/secrets sent in cleartext, and insecure cookies
@@ -169,6 +180,7 @@ Each package has one job:
 | `openvas` / `nexpose` / `privesc` | External scanner connectors; SSH privilege-escalation enumeration |
 | `openapi` / `browser` / `sandbox` | API-spec ingestion; headless-browser DAST; Docker sandbox for gated tools |
 | `jwt_audit` / `sast` / `proxy` | Offline JWT auditing; semgrep SAST parsing; mitmproxy capture analysis |
+| `cloudaudit` / `pocrunner` / `graph` | Prowler misconfig parsing; sandboxed PoC runtime; multi-agent graph orchestration |
 | `autofix` | Remediation guide and optional draft PR (suggest-only) |
 | `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
@@ -249,6 +261,9 @@ sentari --list-phases
 | `--openapi SRC` (+ `--openapi-base-url`) | Ingest an OpenAPI/Swagger/Postman spec; its endpoints become scan targets. |
 | `--api-tests` / `--jwt TOKEN` | Read-only API-security checks / audit a single JWT offline. |
 | `--sast PATH` (+ `--sast-config`) | Static analysis over a source tree with semgrep. |
+| `--cloud-audit aws\|azure\|gcp\|kubernetes` | Audit cloud account configuration with Prowler. |
+| `--graph` (+ `--graph-target`) | Graph of agents: shared blackboard, parallel targets, cross-asset correlation. |
+| `--poc SCRIPT` (+ `--poc-image`) | Run a Python PoC against the target in a sandbox container (gated). |
 | `--proxy PORT` / `--proxy-ingest FILE` | Capture HTTP traffic via mitmproxy / analyze a capture (JSONL or HAR). |
 | `--browser` | Client-side DAST with a headless browser (needs Playwright). |
 | `--sandbox` (+ `--sandbox-image`) | Run the gated offensive tools inside a disposable Docker container. |

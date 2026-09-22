@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -36,6 +36,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Exact acknowledgement string required to enable exploitation.")
     p.add_argument("--exfil-sim", action="store_true",
                    help="Bounded, redacted proof-of-impact read of confirmed exposures.")
+    p.add_argument("--poc", action="append", default=[], metavar="SCRIPT",
+                   help="Python PoC to run against the target in a sandbox container (repeatable, gated).")
+    p.add_argument("--poc-image", metavar="IMAGE",
+                   help="Docker image for --poc (default python:3-slim).")
     p.add_argument("--postexploit", action="store_true",
                    help="Enable gated post-exploitation (lateral movement, AD collection).")
     p.add_argument("--postexploit-confirm", metavar="TEXT",
@@ -71,6 +75,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Capture file for --proxy (default sentari-flows.jsonl).")
     p.add_argument("--proxy-ingest", metavar="FILE",
                    help="Analyze a captured mitmproxy JSONL or HAR file for issues.")
+    p.add_argument("--cloud-audit", choices=["aws", "azure", "gcp", "kubernetes"],
+                   help="Audit cloud account configuration with Prowler.")
     p.add_argument("--sast", metavar="PATH",
                    help="Static analysis (SAST) over a source tree with semgrep.")
     p.add_argument("--sast-config", default="auto",
@@ -122,6 +128,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Do not correlate finding CVEs against the CISA KEV catalog.")
     p.add_argument("--no-compliance", action="store_true",
                    help="Do not tag findings with OWASP/CWE/NIST references.")
+    p.add_argument("--graph", action="store_true",
+                   help="Graph of agents: specialized nodes share a blackboard; targets run in parallel.")
+    p.add_argument("--graph-target", action="append", default=[], metavar="TARGET",
+                   help="Additional target(s) for --graph (repeatable). All must be in --scope.")
     p.add_argument("--autopilot", action="store_true",
                    help="Let the AI choose which phases to run (findings stay tool-backed).")
     p.add_argument("--autopilot-steps", type=int, default=8, help="Max autopilot steps (default 8).")
@@ -283,6 +293,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.sast:
         options["sast_path"] = args.sast
         options["sast_config"] = args.sast_config
+    if args.cloud_audit:
+        options["cloud_audit"] = args.cloud_audit
     if args.proxy_ingest:
         options["proxy_ingest"] = args.proxy_ingest
     if args.api_tests:
@@ -305,7 +317,9 @@ def main(argv: list[str] | None = None) -> int:
             return 6
         print("!! EXPLOITATION ENABLED: authorized, non-production targets only. !!",
               file=sys.stderr)
-        options["exploit"] = {"modules": args.exploit_module, "exfil_sim": args.exfil_sim}
+        options["exploit"] = {"modules": args.exploit_module, "exfil_sim": args.exfil_sim,
+                              "poc_scripts": args.poc,
+                              "poc_image": args.poc_image or "python:3-slim"}
 
     if args.postexploit:
         from .phases.postexploit import CONFIRM_STRING as PE_CONFIRM
@@ -351,6 +365,43 @@ def main(argv: list[str] | None = None) -> int:
             not args.no_safe_mode, args.db)
         print(f"Dispatched to Celery. task id: {async_result.id}")
         print("Result will be persisted if --db was given; view via the dashboard.")
+        return 0
+
+    if args.graph:
+        from . import graph as graph_mod
+        targets = [args.target] + [t for t in args.graph_target if t]
+        try:
+            graphs, correlated = graph_mod.run_graph_targets(
+                targets, scope, args.authorized, audit,
+                safe_mode=not args.no_safe_mode, timeout=args.timeout, options=options)
+        except AuthorizationError as e:
+            print(f"REFUSED: {e}", file=sys.stderr)
+            return 3
+        results = []
+        for g in graphs:
+            results.extend(g.results)
+            summary = ", ".join(f"{n}:{c}" for n, c in g.node_summary.items())
+            status = f"ERROR {g.error}" if g.error else summary
+            print(f"[graph] {g.target}  nodes -> {status}")
+        print(console.render(results))
+        if correlated:
+            print("\n" + "-" * 70 + "\nCROSS-ASSET CORRELATION\n" + "-" * 70)
+            for row in correlated:
+                print(f"[{row['severity']}] {row['finding']} -> "
+                      + ", ".join(row["targets"]))
+        payload = {"results": [r.to_dict() for r in results]}
+        if args.json:
+            Path(args.json).write_text(json.dumps(payload, indent=2, ensure_ascii=False),
+                                       encoding="utf-8")
+            print(f"\nFull results written to {args.json}")
+        if args.db:
+            from .db import RunStore
+            store = RunStore(args.db)
+            for g in graphs:
+                store.save_run(g.target, {"results": [r.to_dict() for r in g.results]})
+            store.close()
+            print(f"Runs persisted to db {args.db}")
+        audit.record("graph.done", targets=len(graphs), correlated=len(correlated))
         return 0
 
     from .engine import run_assessment

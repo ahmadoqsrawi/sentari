@@ -4,6 +4,14 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.9.0] - 2026-09-22
+
+### Added
+- **Cloud misconfiguration audit** (`cloudaudit.py`, `phases/cloudaudit.py`, `--cloud-audit aws|azure|gcp|kubernetes`): runs Prowler against your own account and maps its failed checks (with severity, resource, region) to findings. Graceful without Prowler.
+- **Custom PoC runtime** (`pocrunner.py`, `--poc SCRIPT`, `--poc-image`): runs operator-supplied Python proof-of-concepts against the target inside a disposable Docker container. A finding is recorded only when the PoC prints its own success marker (`SENTARI_POC_SUCCESS`); Sentari never decides on its own that an exploit worked. Gated with the other offensive features.
+- **Graph of agents** (`graph.py`, `--graph`, `--graph-target`): specialized nodes (recon, assess, verify) run on one shared blackboard so later nodes see earlier discoveries, and several targets run in parallel with a cross-asset correlation pass. Every node runs the real phases; findings stay evidence-backed.
+- `ToolRunner.run` gained `sandbox_wrap` so a command that already brings its own container (the PoC runner) is not double-wrapped.
+
 ## [0.8.0] - 2026-09-22
 
 Strix-inspired coverage, built original and evidence-first.
