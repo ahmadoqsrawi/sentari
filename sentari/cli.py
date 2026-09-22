@@ -54,6 +54,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Do not flag unusual findings for manual review.")
     p.add_argument("--no-compliance", action="store_true",
                    help="Do not tag findings with OWASP/CWE/NIST references.")
+    p.add_argument("--autopilot", action="store_true",
+                   help="Let the AI choose which phases to run (findings stay tool-backed).")
+    p.add_argument("--autopilot-steps", type=int, default=8, help="Max autopilot steps (default 8).")
     p.add_argument("--ai", action="store_true",
                    help="Grounded AI triage of the real findings (prioritize/chain/remediate).")
     p.add_argument("--ai-provider", help="AI provider: openai, anthropic, google, openrouter, ollama.")
@@ -147,12 +150,31 @@ def main(argv: list[str] | None = None) -> int:
 
     from .engine import run_assessment
     try:
-        results = run_assessment(
-            args.target, scope, args.authorized, audit,
-            safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
-            dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
-            apply_anomaly=not args.no_anomaly,
-        )
+        if args.autopilot:
+            from .autopilot import run_autopilot
+            from .ai import get_provider
+            provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
+            ap = run_autopilot(
+                args.target, scope, args.authorized, audit, provider,
+                safe_mode=not args.no_safe_mode, timeout=args.timeout, dry_run=args.dry_run,
+                options=options, max_steps=args.autopilot_steps,
+                apply_compliance=not args.no_compliance, apply_anomaly=not args.no_anomaly,
+            )
+            results = ap.results
+            if ap.note:
+                print(ap.note)
+            print("\n-- autopilot decisions --")
+            for d in ap.decisions:
+                print(f"  {d.step}. {d.action} [{d.source}] {d.reason}")
+            audit.record("autopilot.done", target=args.target,
+                         steps=len(ap.decisions), provider=ap.provider)
+        else:
+            results = run_assessment(
+                args.target, scope, args.authorized, audit,
+                safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
+                dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
+                apply_anomaly=not args.no_anomaly,
+            )
     except AuthorizationError as e:
         print(f"REFUSED: {e}", file=sys.stderr)
         return 3

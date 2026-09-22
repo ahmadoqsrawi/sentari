@@ -73,6 +73,11 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - Prioritizes findings, groups them into attack chains, and suggests fixes
 - Works only from the real findings, and drops any reference the model invents
 
+### 🧭 AI autopilot
+- With `--autopilot`, the model chooses which phase to run next and when to stop, based on what has been found so far
+- It controls only the flow. The target is fixed, findings still come from the tools with evidence, and scope and safe mode are enforced on every step
+- If no model is available, or the model returns an invalid action, it falls back to the normal phase order
+
 ### 📋 Compliance mapping
 - Tags findings with OWASP Top 10 (2021), CWE, and NIST 800-53 references
 - Shown in the console, the HTML report, and the JSON output
@@ -185,6 +190,7 @@ sentari --list-phases
 | `--db DSN` | Persist runs to SQLite (a path) or Postgres (a `postgres://` URL). |
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |
 | `--ai` | Grounded AI triage of the findings. |
+| `--autopilot` | Let the AI choose which phases to run (findings stay tool-backed). |
 | `--ai-provider` / `--ai-model` / `--ai-base-url` | Choose the provider and model. |
 | `--serve` | Start the read-only web dashboard instead of scanning. |
 | `--siem-url` / `--siem-type` | Ship findings to a SIEM (webhook, splunk, elasticsearch, syslog). |

@@ -11,6 +11,7 @@ All notable changes to Sentari are recorded here. The format is based on
 - **Prometheus metrics** (`sentari/metrics.py`): a `/metrics` endpoint on the dashboard, plus a Grafana dashboard and scrape config under `deploy/`.
 - **Model catalog** (`sentari/ai/catalog.py`): `--list-models` lists known models per provider; any provider-specific id still works.
 - **Anomaly flagging** (`sentari/anomaly.py`): tags findings whose evidence is unusual for the target as worth manual review. It is a prioritization aid, never a vulnerability claim, and it creates no findings. Disable with `--no-anomaly`.
+- **AI autopilot** (`sentari/autopilot.py`, `--autopilot`): the model picks which phase to run next and when to stop. It controls only the flow; the target is fixed, findings still come from the tools with evidence, scope and safe mode are enforced on every step, and an invalid or missing model choice falls back to the normal phase order.
 
 ## [0.1.0] - 2026-09-22
 
