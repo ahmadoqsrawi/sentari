@@ -35,9 +35,12 @@ def _with_param(url: str, key: str, value: str) -> str:
     return urlunparse(p._replace(query=q))
 
 
-def run_checks(urls: list[str], timeout: int = 15, limit: int = 10
+def run_checks(urls: list[str], timeout: int = 15, limit: int = 10, active: bool = False
                ) -> tuple[list[dict], Optional[str]]:
-    """Return (checks, error). Each check: url, type, detail, severity, confirmed, evidence."""
+    """Return (checks, error). Each check: url, type, detail, severity, confirmed, evidence.
+
+    When `active` is set (outside safe mode), also submit a payload through forms
+    and re-load the page to detect stored XSS. This writes data to the app."""
     if not available():
         return [], "Playwright not installed (pip install \"sentari[browser]\" && playwright install chromium)"
     from playwright.sync_api import sync_playwright
@@ -51,10 +54,51 @@ def run_checks(urls: list[str], timeout: int = 15, limit: int = 10
             ctx = browser.new_context(ignore_https_errors=True)
             for url in urls[:limit]:
                 checks.extend(_probe_url(ctx, url, timeout))
+                if active:
+                    checks.extend(_stored_xss(ctx, url, timeout))
             browser.close()
     except Exception as e:
         return checks, f"browser session error: {type(e).__name__}: {e}"
     return checks, None
+
+
+def _stored_xss(ctx, url: str, timeout: int) -> list[dict]:
+    """Submit an XSS payload through a form, reload, and check for execution."""
+    marker = "stx" + uuid.uuid4().hex[:10]
+    payload = f'<img src=x onerror="window.__stx=\'{marker}\'">'
+    page = ctx.new_page()
+    try:
+        page.goto(url, timeout=timeout * 1000, wait_until="domcontentloaded")
+        filled = page.evaluate(
+            """(p) => {
+                for (const f of document.forms) {
+                    let any = false;
+                    for (const e of f.elements) {
+                        const t = (e.type || '').toLowerCase();
+                        if (e.tagName === 'TEXTAREA' || t === 'text' || t === 'search' || t === '') {
+                            e.value = p; any = true;
+                        }
+                    }
+                    if (any) { f.submit(); return true; }
+                }
+                return false;
+            }""", payload)
+        if not filled:
+            return []
+        page.wait_for_timeout(500)
+        # revisit the original page; a stored payload renders again there
+        page.goto(url, timeout=timeout * 1000, wait_until="domcontentloaded")
+        page.wait_for_timeout(400)
+        if page.evaluate("window.__stx || null") == marker:
+            return [_ck(url, "stored-xss", "high", True,
+                        "A payload submitted through a form executed when the page was "
+                        "reloaded (stored XSS). Working PoC.",
+                        f"{url}\n[executed after resubmit] window.__stx == {marker}")]
+    except Exception:
+        pass
+    finally:
+        page.close()
+    return []
 
 
 def _probe_url(ctx, url: str, timeout: int) -> list[dict]:

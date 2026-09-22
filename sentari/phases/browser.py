@@ -40,7 +40,8 @@ class BrowserPhase(Phase):
         if not urls:
             result.notes.append("Browser DAST: no web URLs to test.")
             return
-        checks, err = browser.run_checks(urls, timeout=max(ctx.runner.default_timeout, 15))
+        checks, err = browser.run_checks(urls, timeout=max(ctx.runner.default_timeout, 15),
+                                         active=not ctx.safe_mode)
         if err:
             result.notes.append(f"Browser DAST: {err}")
         for c in checks:
@@ -52,6 +53,7 @@ class BrowserPhase(Phase):
             _confirmed_titles = {
                 "reflected-xss": "Reflected XSS confirmed (browser execution)",
                 "dom-xss": "DOM-based XSS confirmed (browser execution)",
+                "stored-xss": "Stored XSS confirmed (browser execution)",
                 "prototype-pollution": "Client-side prototype pollution confirmed",
             }
             title = (_confirmed_titles.get(c["type"]) if c["confirmed"]
@@ -73,6 +75,7 @@ def _fix(ctype: str) -> str:
         "password-over-http": "Serve the login over HTTPS only; add HSTS.",
         "mixed-content": "Load all subresources over HTTPS; set upgrade-insecure-requests.",
         "dom-xss": "Avoid writing untrusted location data into HTML sinks; sanitize and use safe APIs.",
+        "stored-xss": "Encode stored user input on output; apply a strict Content-Security-Policy.",
         "prototype-pollution": "Reject __proto__/constructor keys when merging untrusted input.",
         "clickjacking": "Set X-Frame-Options: DENY or a CSP frame-ancestors policy.",
         "csrf": "Add per-request anti-CSRF tokens and SameSite cookies on state-changing forms.",
