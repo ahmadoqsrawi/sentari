@@ -55,12 +55,23 @@ def render_html(results: list[PhaseResult], target: str) -> str:
                 f'<a href="{_esc(u)}" rel="noreferrer noopener" target="_blank">{_esc(u)}</a>'
                 for u in f.references) + "</div>"
         rec = f'<div class="rec"><b>Fix:</b> {_esc(f.recommendation)}</div>' if f.recommendation else ""
+        comp = (f.metadata or {}).get("compliance") or {}
+        comp_tags = ""
+        if comp:
+            chips = []
+            if comp.get("owasp"):
+                chips.append(f'<span class="chip">OWASP {_esc(comp["owasp"])}</span>')
+            for c in comp.get("cwe", []):
+                chips.append(f'<span class="chip">{_esc(c)}</span>')
+            if comp.get("nist"):
+                chips.append(f'<span class="chip">NIST {_esc(comp["nist"])}</span>')
+            comp_tags = '<div class="chips">' + "".join(chips) + "</div>"
         loc = f'<span class="loc">{_esc(f.location)}</span>' if f.location else ""
         finding_rows.append(
             f'<div class="finding">'
             f'<div class="fhead"><span class="badge" style="background:{_SEV_COLOR[f.severity]}">'
             f'{f.severity.value.upper()}</span><span class="ftitle">{_esc(f.title)}</span>{loc}</div>'
-            f'<div class="fdesc">{_esc(f.description)}</div>{rec}{refs}'
+            f'<div class="fdesc">{_esc(f.description)}</div>{rec}{comp_tags}{refs}'
             f'<div class="evwrap">{ev_blocks}</div>'
             f'<div class="evrefline">evidence: {ev_links}</div>'
             f'</div>'
@@ -102,6 +113,8 @@ border-bottom:1px solid var(--line);padding-bottom:6px;margin:32px 0 14px}}
 .badge{{color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px}}
 .ftitle{{font-weight:600}}.loc{{color:var(--muted);font-family:ui-monospace,monospace;font-size:12px}}
 .fdesc{{margin:8px 0}}.rec{{margin:6px 0;font-size:14px}}.refs{{font-size:12px;color:var(--muted);margin-top:4px}}
+.chips{{margin:8px 0 2px;display:flex;gap:6px;flex-wrap:wrap}}
+.chip{{font-size:11px;background:var(--bg);border:1px solid var(--line);color:var(--muted);padding:2px 8px;border-radius:20px}}
 .evrefline{{font-size:12px;color:var(--muted);margin-top:8px}}
 .evref,.refs a{{color:#2f7fbf;text-decoration:none}}
 .evd{{margin-top:8px;font-size:12px}}.evd summary{{cursor:pointer;color:var(--muted);font-family:ui-monospace,monospace}}

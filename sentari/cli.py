@@ -37,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
     p.add_argument("--retest", metavar="BASELINE_JSON",
                    help="Compare this run against a prior --json baseline (fixed/still/new).")
+    p.add_argument("--no-compliance", action="store_true",
+                   help="Do not tag findings with OWASP/CWE/NIST references.")
     p.add_argument("--ai", action="store_true",
                    help="Grounded AI triage of the real findings (prioritize/chain/remediate).")
     p.add_argument("--ai-provider", help="AI provider: openai, anthropic, google, openrouter, ollama.")
@@ -117,6 +119,10 @@ def main(argv: list[str] | None = None) -> int:
         audit.record("phase.done", target=args.target, phase=cls.name,
                      findings=len(result.findings), error=result.error)
         results.append(result)
+
+    if not args.no_compliance:
+        from . import compliance
+        compliance.apply(results)
 
     print(console.render(results))
 

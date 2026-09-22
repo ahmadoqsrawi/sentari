@@ -43,6 +43,15 @@ def render(results: list[PhaseResult]) -> str:
         lines.append(f"        {f.description}")
         if f.recommendation:
             lines.append(f"        fix: {f.recommendation}")
+        comp = (f.metadata or {}).get("compliance")
+        if comp:
+            tag = " | ".join(x for x in [
+                f"OWASP {comp['owasp']}" if comp.get("owasp") else "",
+                ", ".join(comp.get("cwe", [])),
+                f"NIST {comp['nist']}" if comp.get("nist") else "",
+            ] if x)
+            if tag:
+                lines.append(f"        compliance: {tag}")
         lines.append(f"        evidence: {', '.join(f.evidence_ids)}")
 
     lines.append("\n" + "-" * 70)
