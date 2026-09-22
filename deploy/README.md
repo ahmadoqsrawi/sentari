@@ -1,8 +1,6 @@
 # Deploying Sentari
 
-Sentari's core is a single-host CLI (stdlib only). These files are for running it
-as a **distributed service**: a Celery worker pool that executes scans and a
-read-only dashboard, backed by Redis (broker) and Postgres (shared run store).
+Sentari's core is a single-host CLI (standard library only). These files run it as a distributed service instead: a pool of Celery workers that execute scans, and a read-only dashboard, backed by Redis (the broker) and Postgres (the shared run store).
 
 > Use Sentari only against systems you are authorized to test. `--authorized`
 > and scope are still enforced inside the worker.
@@ -37,7 +35,4 @@ kubectl -n sentari scale deployment/sentari-worker --replicas=5
 kubectl -n sentari port-forward svc/sentari-dashboard 8600:80
 ```
 
-Components: `redis` (broker/result backend), `postgres` (shared run store),
-`sentari-worker` (Celery workers, scale horizontally), `sentari-dashboard`
-(read-only viewer). The dashboard is internal (ClusterIP): expose it
-deliberately via an Ingress with auth, never open the scan tooling to the public.
+The components are `redis` (broker and result backend), `postgres` (shared run store), `sentari-worker` (the Celery workers, which you scale horizontally), and `sentari-dashboard` (the read-only viewer). The dashboard is internal (ClusterIP). Expose it deliberately through an Ingress with authentication, and never open the scan tooling to the public.

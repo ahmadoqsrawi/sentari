@@ -9,7 +9,7 @@ you may not modify, create derivatives, or redistribute modified versions.
 ------------------------------------------------------------------------------
 Third-party tools
 ------------------------------------------------------------------------------
-Sentari ORCHESTRATES external security tools by invoking them as separate
+Sentari orchestrates external security tools by invoking them as separate
 programs. It does not bundle, embed, or distribute any of them, and it does not
 create derivative works of them. Each remains the property of its authors under
 its own license. When present on the host, Sentari may invoke:
@@ -20,12 +20,12 @@ its own license. When present on the host, Sentari may invoke:
   - gobuster / ffuf (content discovery)
   - sqlmap          (https://sqlmap.org)
 
-Sentari's core runs on the Python standard library alone and functions with
-none of the above installed.
+Sentari's core runs on the Python standard library and works with none of the
+above installed.
 
 ------------------------------------------------------------------------------
 Authorized use only
 ------------------------------------------------------------------------------
-Sentari executes real offensive security tooling. Use it only against systems
-you own or are explicitly, in writing, authorized to test. You are solely
-responsible for obtaining authorization and complying with applicable law.
+Sentari runs real offensive security tooling. Use it only against systems you
+own or are explicitly, in writing, authorized to test. You are responsible for
+obtaining that authorization and for complying with applicable law.
