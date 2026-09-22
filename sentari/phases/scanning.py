@@ -18,6 +18,7 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
+from ..concurrency import pmap
 from ..models import Finding, PhaseResult, Severity
 from .base import Phase, PhaseContext
 from .recon import WEB_PORTS, _hostname
@@ -202,16 +203,20 @@ class ScanPhase(Phase):
                         description=f"gobuster found: {line}", evidence_ids=[ev.id],
                         target=ctx.target, phase=self.name, location=f"{base}{line.split()[0]}"))
             return
-        # built-in probe of common sensitive paths
+        # built-in probe of common sensitive paths (concurrent: I/O bound)
         if not wordlist:
             result.notes.append("No wordlist/gobuster: probing a small built-in sensitive-path list.")
-        for path in _COMMON_PATHS:
+
+        def probe(path: str):
             url = base + path
             t0 = time.monotonic()
-            status, _, err = _fetch(url)
+            status, _, _ = _fetch(url)
+            return path, url, status, round(time.monotonic() - t0, 3)
+
+        for path, url, status, dur in pmap(probe, _COMMON_PATHS, workers=16):
             if status in (200, 401, 403) and status > 0:
                 ev = ctx.runner.record_internal(["http-get", url], 0, f"HTTP {status}",
-                                                duration_sec=round(time.monotonic() - t0, 3))
+                                                duration_sec=dur)
                 sev = Severity.HIGH if path.startswith(("/.git", "/.env", "/.svn")) and status == 200 else Severity.LOW
                 result.findings.append(Finding(
                     title=f"Sensitive path reachable: {path} (HTTP {status})", severity=sev,

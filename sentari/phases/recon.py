@@ -15,6 +15,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
+from ..concurrency import pmap
 from ..models import Finding, PhaseResult, Severity
 from ..parsers.nmap import parse_nmap_xml
 from .base import Phase, PhaseContext
@@ -83,19 +84,24 @@ class ReconPhase(Phase):
     # --- built-in TCP connect scan ---
     def _builtin_portscan(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[int]:
         ports = ctx.options.get("ports", DEFAULT_PORTS)
-        open_ports: list[int] = []
-        for port in ports:
+
+        def check(port: int) -> tuple[int, bool, float]:
             t0 = time.monotonic()
             try:
                 with socket.create_connection((host, port), timeout=2):
-                    state, rc = "open", 0
-                    open_ports.append(port)
+                    is_open = True
             except (socket.timeout, ConnectionRefusedError, OSError):
-                state, rc = "closed/filtered", 1
-            if state.startswith("open"):
+                is_open = False
+            return port, is_open, round(time.monotonic() - t0, 3)
+
+        # probe all ports concurrently (I/O-bound); record results sequentially
+        open_ports: list[int] = []
+        for port, is_open, dur in pmap(check, ports, workers=32):
+            if is_open:
+                open_ports.append(port)
                 ev = ctx.runner.record_internal(
-                    ["tcp-connect", f"{host}:{port}"], rc, f"port {port}/tcp {state}",
-                    duration_sec=round(time.monotonic() - t0, 3),
+                    ["tcp-connect", f"{host}:{port}"], 0, f"port {port}/tcp open",
+                    duration_sec=dur,
                 )
                 result.findings.append(Finding(
                     title=f"Open port {port}/tcp", severity=Severity.INFO,
@@ -103,7 +109,7 @@ class ReconPhase(Phase):
                     evidence_ids=[ev.id], target=ctx.target, phase=self.name,
                     location=f"{port}/tcp",
                 ))
-        return open_ports
+        return sorted(open_ports)
 
     # --- nmap service/version enrichment ---
     def _nmap(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[int]:
