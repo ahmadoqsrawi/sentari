@@ -1,0 +1,54 @@
+name: "Sentari security assessment"
+description: "Run a Sentari evidence-grounded assessment against an authorized target in CI."
+author: "Ahmad"
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  target:
+    description: "Target host, host:port, or URL to assess."
+    required: true
+  scope:
+    description: "Authorized scope (host or CIDR). Defaults to the target."
+    required: false
+    default: ""
+  authorized:
+    description: "Must be 'true' to attest you have written authorization to test the target."
+    required: true
+    default: "false"
+  args:
+    description: "Extra Sentari CLI arguments (for example: --openapi openapi.json --json report.json)."
+    required: false
+    default: ""
+  python-version:
+    description: "Python version to run on."
+    required: false
+    default: "3.11"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Sentari
+      shell: bash
+      run: pip install "${{ github.action_path }}"
+
+    - name: Check authorization
+      shell: bash
+      run: |
+        if [ "${{ inputs.authorized }}" != "true" ]; then
+          echo "::error::Set 'authorized: true' only when you have written authorization to test the target."
+          exit 1
+        fi
+
+    - name: Run Sentari
+      shell: bash
+      run: |
+        SCOPE="${{ inputs.scope }}"
+        [ -z "$SCOPE" ] && SCOPE="${{ inputs.target }}"
+        sentari "${{ inputs.target }}" --scope "$SCOPE" --authorized ${{ inputs.args }}

@@ -1,0 +1,32 @@
+# Example: run Sentari in your own repository's CI.
+# Copy this into .github/workflows/ in the repo you want to assess.
+#
+# Only set authorized: "true" when you have written permission to test the target.
+
+name: Security assessment
+
+on:
+  workflow_dispatch:      # run it manually from the Actions tab
+  schedule:
+    - cron: "0 3 * * 1"   # weekly, Mondays at 03:00 UTC
+
+jobs:
+  sentari:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ahmadoqsrawi/sentari@main
+        with:
+          target: "https://staging.example.com"
+          scope: "staging.example.com"
+          authorized: "true"
+          # Ingest the API surface and save reports as build artifacts.
+          args: "--openapi openapi.json --json sentari-report.json --html sentari-report.html"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sentari-reports
+          path: |
+            sentari-report.json
+            sentari-report.html
