@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,7 +29,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-safe-mode", action="store_true",
                    help="Allow more intrusive checks (default: safe mode on).")
     p.add_argument("--exploit", action="store_true",
-                   help="Enable the gated exploitation phase (authorized non-production only).")
+                   help="Enable the gated exploitation phase (authorized targets only).")
+    p.add_argument("--autonomous", action="store_true",
+                   help="Autonomous run: full pipeline incl. gated exploitation, AI-driven, "
+                        "authorized once at launch (needs --authorized, --no-safe-mode, --exploit-confirm).")
     p.add_argument("--exploit-module", action="append", default=[], metavar="MSF_MODULE",
                    help="Metasploit module to run (repeatable). Required for exploitation.")
     p.add_argument("--exploit-confirm", metavar="TEXT",
@@ -460,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f'error: --exploit requires --exploit-confirm "{CONFIRM_STRING}"',
                   file=sys.stderr)
             return 6
-        print("!! EXPLOITATION ENABLED: authorized, non-production targets only. !!",
+        print("!! EXPLOITATION ENABLED: authorized targets only; you are responsible for authorization and scope. !!",
               file=sys.stderr)
         options["exploit"] = {"modules": args.exploit_module, "exfil_sim": args.exfil_sim,
                               "poc_scripts": args.poc,
@@ -479,7 +482,7 @@ def main(argv: list[str] | None = None) -> int:
             print("error: --postexploit requires --postexploit-user (and usually --postexploit-pass)",
                   file=sys.stderr)
             return 6
-        print("!! POST-EXPLOITATION ENABLED: authorized, non-production targets only. !!",
+        print("!! POST-EXPLOITATION ENABLED: authorized targets only; you are responsible for authorization and scope. !!",
               file=sys.stderr)
         options["postexploit"] = {
             "username": args.postexploit_user, "password": args.postexploit_pass or "",
@@ -488,6 +491,23 @@ def main(argv: list[str] | None = None) -> int:
             "privesc": args.privesc, "privesc_host": args.privesc_host or "",
             "privesc_key": args.privesc_key or "", "privesc_port": args.privesc_port,
         }
+
+    if args.autonomous:
+        from .phases.exploit import CONFIRM_STRING as AUTO_CONFIRM
+        if not (args.authorized and args.no_safe_mode and args.exploit_confirm == AUTO_CONFIRM):
+            print('error: --autonomous requires --authorized, --no-safe-mode, and '
+                  f'--exploit-confirm "{AUTO_CONFIRM}"', file=sys.stderr)
+            return 6
+        print("!! AUTONOMOUS RUN ENABLED. Full pipeline including gated exploitation. "
+              "Authorized targets only; you are responsible for authorization and scope. !!",
+              file=sys.stderr)
+        options["injection"] = True
+        options.setdefault("oob_host", args.oob_host)
+        options["browser"] = True
+        options["api_tests"] = True
+        options.setdefault("exploit", {"modules": args.exploit_module, "exfil_sim": args.exfil_sim,
+                                       "poc_scripts": args.poc, "poc_image": args.poc_image or "python:3-slim"})
+        args.ai = True
 
     if args.ai_osint:
         if args.enqueue:

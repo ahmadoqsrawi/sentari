@@ -4,6 +4,14 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.15.0] - 2026-09-22
+
+### Changed
+- Offensive gates now allow authorized testing of production. The exploitation and post-exploitation confirmation string is now `I AM AUTHORIZED TO TEST THIS TARGET` (was the non-production wording), matching standard authorized pentest tooling. Scope, --authorized, the audit log, the per-run confirmation, and the evidence-first invariant are kept.
+
+### Added
+- `--autonomous`: one command runs the full pipeline including gated exploitation, AI-driven, authorized once at launch (needs --authorized, --no-safe-mode, and the confirmation string). Added an authorized-use disclaimer to the README.
+
 ## [0.14.0] - 2026-09-22
 
 ### Added

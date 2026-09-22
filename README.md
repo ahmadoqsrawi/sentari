@@ -449,7 +449,9 @@ directory (for Claude Code, copy a folder into `~/.claude/skills/`).
 
 ## 🔐 Authorization and safety
 
-Sentari runs real offensive tooling. It refuses to run unless the target is within a declared `--scope` and you attest with `--authorized`, and it records every run in an append-only audit log. Safe mode is on by default, so intrusive verification requires `--no-safe-mode`. Use it only against systems you own or have written permission to test. See [SECURITY.md](SECURITY.md).
+Sentari runs real offensive tooling. It refuses to run unless the target is within a declared `--scope` and you attest with `--authorized`, and it records every run in an append-only audit log. Safe mode is on by default, so intrusive verification requires `--no-safe-mode`. See [SECURITY.md](SECURITY.md).
+
+**Authorized use only.** Sentari actively tests the targets you point it at, so only run it against systems you own or have explicit, written permission to test, and stay within the agreed scope. Unauthorized testing is illegal in most jurisdictions. You alone are responsible for obtaining authorization and complying with the law. Sentari is provided "as is" with no warranty or liability for misuse.
 
 ## 📄 License
 
