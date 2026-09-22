@@ -6,10 +6,9 @@ import json
 import sys
 from pathlib import Path
 
-from .authorization import AuditLog, AuthorizationError, Scope, authorize
-from .phases import PHASES, PhaseContext
+from .authorization import AuditLog, AuthorizationError, Scope
+from .phases import PHASES
 from .reporting import console
-from .runner import ToolRunner
 
 __version__ = "0.1.0"
 
@@ -41,6 +40,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Persist/read runs in a DB: a SQLite file path or a postgres:// URL.")
     p.add_argument("--retest-latest", action="store_true",
                    help="Retest against this target's most recent run in --db.")
+    p.add_argument("--enqueue", action="store_true",
+                   help="Dispatch the scan to a Celery worker instead of running locally.")
     p.add_argument("--serve", action="store_true",
                    help="Start the read-only web dashboard instead of scanning.")
     p.add_argument("--port", type=int, default=8600, help="Dashboard port (default 8600).")
@@ -105,39 +106,37 @@ def main(argv: list[str] | None = None) -> int:
 
     audit = AuditLog(Path(args.audit_log))
     scope = Scope.from_items(args.scope)
-    try:
-        authorize(args.target, scope, args.authorized, audit)
-    except AuthorizationError as e:
-        print(f"REFUSED: {e}", file=sys.stderr)
-        return 3
-
-    runner = ToolRunner(default_timeout=args.timeout, dry_run=args.dry_run)
     selected = {s.strip() for s in args.phases.split(",")} if args.phases != "all" else None
-
     options = {}
     if args.wordlist:
         options["wordlist"] = args.wordlist
     if args.sqlmap_url:
         options["sqlmap_url"] = args.sqlmap_url
-    ctx = PhaseContext(target=args.target, runner=runner, safe_mode=not args.no_safe_mode,
-                       options=options)
-    results = []
-    for cls in sorted(PHASES, key=lambda c: c.number):
-        if selected is not None and cls.name not in selected:
-            continue
-        audit.record("phase.start", target=args.target, phase=cls.name)
-        # each phase gets a fresh runner so its result carries only its own evidence
-        ctx.runner = ToolRunner(default_timeout=args.timeout, dry_run=args.dry_run)
-        result = cls().run(ctx)
-        # make findings so far available to later phases (e.g. verification)
-        ctx.shared.setdefault("prior_findings", []).extend(result.findings)
-        audit.record("phase.done", target=args.target, phase=cls.name,
-                     findings=len(result.findings), error=result.error)
-        results.append(result)
 
-    if not args.no_compliance:
-        from . import compliance
-        compliance.apply(results)
+    if args.enqueue:
+        from .tasks import HAVE_CELERY, run_assessment_task
+        if not HAVE_CELERY:
+            print("error: --enqueue needs Celery installed (pip install celery) and a "
+                  "running broker; start a worker with: celery -A sentari.tasks worker",
+                  file=sys.stderr)
+            return 5
+        async_result = run_assessment_task.delay(
+            args.target, args.scope, args.authorized, options,
+            not args.no_safe_mode, args.db)
+        print(f"Dispatched to Celery. task id: {async_result.id}")
+        print("Result will be persisted if --db was given; view via the dashboard.")
+        return 0
+
+    from .engine import run_assessment
+    try:
+        results = run_assessment(
+            args.target, scope, args.authorized, audit,
+            safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
+            dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
+        )
+    except AuthorizationError as e:
+        print(f"REFUSED: {e}", file=sys.stderr)
+        return 3
 
     print(console.render(results))
 
