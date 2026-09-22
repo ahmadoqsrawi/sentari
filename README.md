@@ -2,20 +2,20 @@
 
 # 🛡️ Sentari
 
-### Evidence-grounded security assessment for security teams, with optional AI triage
+### AI-driven penetration testing that validates findings with real proofs-of-concept
 
 <p>
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-22%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-182%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-proprietary-lightgrey.svg" alt="License">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
 </div>
 
-Sentari runs real security tools and reports only what they actually found. Every finding points back to the exact command that produced it, its output, exit code, and timing. There are no hardcoded results, and nothing invented by a language model.
+Sentari is an AI-driven penetration testing platform for developers and security teams. Its agents test a target dynamically, find vulnerabilities, and validate the high-impact ones with a real proof-of-concept (payload execution, or an out-of-band callback) rather than a signature match. It runs the whole methodology from reconnaissance to exploitation, and reports only what it can actually prove: every finding points back to the exact command that produced it, its output, exit code, and timing. There are no hardcoded results, and nothing invented by a language model.
 
 > **The rule that defines Sentari:** a finding exists only when a real command produced evidence for it. This is enforced in code, a `Finding` cannot be created without evidence, and it holds through the AI layer, which discards any reference to a finding that does not exist.
 
@@ -166,7 +166,7 @@ Sentari runs real security tools and reports only what they actually found. Ever
 
 ## 🏗️ Architecture
 
-Phases 1 to 4 run tools through one shared engine; reporting and retest read the results.
+All phases run tools through one shared engine; reporting and retest read the results.
 
 ```mermaid
 flowchart LR
@@ -265,7 +265,9 @@ Two gated offensive phases exist but are off by default and never in the phase l
 - **Exploitation** (`--exploit`): operator-named Metasploit modules plus a bounded, redacted exfil-simulation.
 - **Post-exploitation** (`--postexploit`): CrackMapExec SMB enumeration, bloodhound-python AD collection, and read-only SSH privilege-escalation enumeration (`--privesc`), with credentials you supply.
 
-Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string, and is for authorized, non-production targets only. The privilege-escalation checks are read-only and change nothing on the host. With `--sandbox`, the gated offensive tools run inside a disposable `docker run --rm` container instead of on the host; this isolates where commands run and does not loosen any gate.
+Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string (`I AM AUTHORIZED TO TEST THIS TARGET`), and is for authorized targets only, which may include production when you have explicit, written permission for that system. You are responsible for authorization and scope. The privilege-escalation checks are read-only and change nothing on the host. With `--sandbox`, the gated offensive tools run inside a disposable `docker run --rm` container instead of on the host; this isolates where commands run and does not loosen any gate.
+
+`--autonomous` runs the full pipeline including gated exploitation, AI-driven, authorized once at launch (needs `--authorized`, `--no-safe-mode`, and the confirmation string), with no per-step prompts.
 
 ```bash
 sentari --list-phases
@@ -278,7 +280,7 @@ sentari --list-phases
 | `--scope HOST` (or CIDR) | Authorized target(s). Repeatable. Required. |
 | `--authorized` | Attest you have permission to test the target. Required. |
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |
-| `--no-safe-mode` | Allow the gated, read-only verification checks. |
+| `--no-safe-mode` | Allow intrusive and active checks (masscan, stored XSS, XXE, mass assignment) and enable the gated offensive features. |
 | `--html` / `--json` / `--xml` / `--pdf` FILE | Write the report in that format (PDF needs reportlab). |
 | `--cloud {aws,azure,gcp}` | List internet-facing assets in your cloud account and exit. |
 | `--asset-value {low,medium,high,critical}` | Asset criticality for business-impact scoring. |
@@ -304,8 +306,9 @@ sentari --list-phases
 | `--suggest-patches` (+ `--patch-out`) | AI-proposed code-fix diffs, validated and written to a patch file (not applied). |
 | `--apply-fixes` (+ `--apply-confirm`) | Apply the validated patches into the working tree, uncommitted, for review. |
 | `--ai-osint` | AI proposes subdomain labels; DNS confirms them (runs locally). |
-| `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized non-production only. |
-| `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`, `--privesc`) | Gated post-exploitation (lateral movement, AD collection, SSH privesc enumeration), authorized non-production only. |
+| `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized targets only (production allowed with written permission). |
+| `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`, `--privesc`) | Gated post-exploitation (lateral movement, AD collection, SSH privesc enumeration), authorized targets only. |
+| `--autonomous` (+ `--authorized`, `--no-safe-mode`, `--exploit-confirm`) | Autonomous run: full pipeline including gated exploitation, AI-driven, authorized once at launch. |
 | `--save-run DIR` | Save the run for the dashboard. |
 | `--db DSN` | Persist runs to SQLite (a path) or Postgres (a `postgres://` URL). |
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |
