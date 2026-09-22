@@ -66,7 +66,7 @@ def _probe_url(ctx, url: str, timeout: int) -> list[dict]:
     console: list[str] = []
     page.on("console", lambda m: console.append(f"{m.type}: {m.text}"[:200]))
     try:
-        page.goto(test_url, timeout=timeout * 1000, wait_until="domcontentloaded")
+        resp = page.goto(test_url, timeout=timeout * 1000, wait_until="domcontentloaded")
         try:
             hit = page.evaluate("window.__sx || null")
         except Exception:
@@ -80,13 +80,100 @@ def _probe_url(ctx, url: str, timeout: int) -> list[dict]:
             out.append(_ck(url, "reflected-input", "medium", False,
                            "Input reflected unescaped in the response (not confirmed executing).",
                            test_url + "\n[reflected raw payload in DOM]"))
+        headers = {}
+        try:
+            headers = resp.headers if resp else {}
+        except Exception:
+            headers = {}
         # insecure password field / mixed content, from the real DOM
         out.extend(_dom_checks(page, url, console))
+        out.extend(_clickjacking(headers, url))
+        out.extend(_csrf(page, url))
+        out.extend(_dom_xss(ctx, url, timeout))
+        out.extend(_proto_pollution(ctx, url, timeout))
     except Exception as e:
         out.append(_ck(url, "browser-error", "info", False, f"navigation failed: {e}", test_url))
     finally:
         page.close()
     return out
+
+
+def _clickjacking(headers: dict, url: str) -> list[dict]:
+    h = {k.lower(): v for k, v in (headers or {}).items()}
+    xfo = h.get("x-frame-options", "")
+    csp = h.get("content-security-policy", "")
+    if not xfo and "frame-ancestors" not in csp.lower():
+        return [_ck(url, "clickjacking", "medium", False,
+                    "No X-Frame-Options and no CSP frame-ancestors: the page can be framed "
+                    "(clickjacking candidate).",
+                    f"{url}\nX-Frame-Options: (absent)\nCSP frame-ancestors: (absent)")]
+    return []
+
+
+def _csrf(page, url: str) -> list[dict]:
+    """Flag state-changing forms with no anti-CSRF token."""
+    try:
+        forms = page.evaluate(
+            """() => Array.from(document.forms).map(f => ({
+                method: (f.method || 'get').toLowerCase(),
+                fields: Array.from(f.elements).map(e => (e.name||'').toLowerCase())
+            }))""")
+    except Exception:
+        return []
+    out = []
+    for f in forms or []:
+        if f.get("method") == "post":
+            names = f.get("fields", [])
+            has_token = any(("csrf" in n or "token" in n or "authenticity" in n) for n in names)
+            if not has_token:
+                out.append(_ck(url, "csrf", "medium", False,
+                               "A POST form has no anti-CSRF token field (candidate).",
+                               f"{url}\nform fields: {', '.join(names) or '(none)'}"))
+                break
+    return out
+
+
+def _dom_xss(ctx, url: str, timeout: int) -> list[dict]:
+    """DOM-based XSS via the URL fragment (never sent to the server)."""
+    import uuid as _uuid
+    marker = "dx" + _uuid.uuid4().hex[:10]
+    frag = f'#"><img src=x onerror="window.__dx=\'{marker}\'">'
+    page = ctx.new_page()
+    try:
+        page.goto(url + frag, timeout=timeout * 1000, wait_until="domcontentloaded")
+        page.wait_for_timeout(300)
+        hit = page.evaluate("window.__dx || null")
+        if hit == marker:
+            return [_ck(url, "dom-xss", "high", True,
+                        "Fragment payload executed via a client-side sink (DOM XSS). "
+                        "The fragment is never sent to the server, so this is client-side.",
+                        url + frag + f"\n[executed] window.__dx == {marker}")]
+    except Exception:
+        pass
+    finally:
+        page.close()
+    return []
+
+
+def _proto_pollution(ctx, url: str, timeout: int) -> list[dict]:
+    """Client-side prototype pollution via a crafted query string."""
+    marker = "pp" + uuid.uuid4().hex[:8]
+    test = _with_param(url, "__proto__[sentari_pp]", marker)
+    page = ctx.new_page()
+    try:
+        page.goto(test, timeout=timeout * 1000, wait_until="domcontentloaded")
+        page.wait_for_timeout(300)
+        polluted = page.evaluate("({}).sentari_pp || null")
+        if polluted == marker:
+            return [_ck(url, "prototype-pollution", "high", True,
+                        "A query parameter polluted Object.prototype (client-side prototype "
+                        "pollution). Confirmed by reading the polluted property.",
+                        test + f"\n[confirmed] ({{}}).sentari_pp == {marker}")]
+    except Exception:
+        pass
+    finally:
+        page.close()
+    return []
 
 
 def _dom_checks(page, url: str, console: list[str]) -> list[dict]:

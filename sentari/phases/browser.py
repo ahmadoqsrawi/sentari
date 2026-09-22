@@ -49,9 +49,13 @@ class BrowserPhase(Phase):
                 continue
             ev = ctx.runner.record_internal(["browser-check", c["type"], c["url"]], 0,
                                             c["evidence"])
-            title = ("Reflected XSS confirmed (browser execution)"
-                     if c["type"] == "reflected-xss" and c["confirmed"]
-                     else c["type"].replace("-", " ").title())
+            _confirmed_titles = {
+                "reflected-xss": "Reflected XSS confirmed (browser execution)",
+                "dom-xss": "DOM-based XSS confirmed (browser execution)",
+                "prototype-pollution": "Client-side prototype pollution confirmed",
+            }
+            title = (_confirmed_titles.get(c["type"]) if c["confirmed"]
+                     else None) or c["type"].replace("-", " ").title()
             result.findings.append(Finding(
                 title=title, severity=_SEV.get(c["severity"], Severity.INFO),
                 description=c["detail"], evidence_ids=[ev.id], target=ctx.target,
@@ -68,4 +72,8 @@ def _fix(ctype: str) -> str:
         "reflected-input": "Encode reflected input; validate and escape on output.",
         "password-over-http": "Serve the login over HTTPS only; add HSTS.",
         "mixed-content": "Load all subresources over HTTPS; set upgrade-insecure-requests.",
+        "dom-xss": "Avoid writing untrusted location data into HTML sinks; sanitize and use safe APIs.",
+        "prototype-pollution": "Reject __proto__/constructor keys when merging untrusted input.",
+        "clickjacking": "Set X-Frame-Options: DENY or a CSP frame-ancestors policy.",
+        "csrf": "Add per-request anti-CSRF tokens and SameSite cookies on state-changing forms.",
     }.get(ctype, "")
