@@ -179,7 +179,7 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 All phases run tools through one shared engine; gated exploitation, enrichment, AI triage, reporting, and retest read the results.
 
 ```mermaid
-flowchart TB
+flowchart LR
     A[CLI] --> AUTH{authorized?<br/>in scope?}
     AUTH -- no --> STOP[refuse + audit]
     AUTH -- yes --> ENG[engine.run_assessment]
