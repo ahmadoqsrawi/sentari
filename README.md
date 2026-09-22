@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-186%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-190%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -240,6 +240,19 @@ sentari --version
 sentari 127.0.0.1 --scope 127.0.0.1 --authorized --html report.html
 ```
 
+Two named workflow presets bundle the common jobs into one command:
+
+```bash
+# Code review: static source analysis, no live environment, with AI fix suggestions
+sentari --code-review ./src --html code-review.html
+
+# Web app pentest: authenticated live-app testing, findings validated by execution/OOB
+sentari --web-pentest https://app.example.com --authorized \
+        --identity alice:Cookie:session=abc --html pentest.html
+```
+
+`--code-review` runs only the SAST phase over local files (authorized by default, no target attacked). `--web-pentest` expands to the full pipeline plus injection, browser execution, and API checks against a live target; it still requires `--authorized`.
+
 Optional extras:
 
 ```bash
@@ -284,6 +297,8 @@ sentari --list-phases
 
 | Option | Description |
 |--------|-------------|
+| `--code-review PATH` | Workflow preset: source-code vulnerability review (SAST over `PATH`, no live environment) with AI fix suggestions. Local files, authorized by default. |
+| `--web-pentest URL` | Workflow preset: authenticated live-app pentest (full pipeline + injection/OOB, browser execution, API checks). Still needs `--authorized`; add `--identity` for authenticated testing. |
 | `--scope HOST` (or CIDR) | Authorized target(s). Repeatable. Required. |
 | `--authorized` | Attest you have permission to test the target. Required. |
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |

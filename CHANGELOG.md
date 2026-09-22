@@ -4,6 +4,16 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.19.0] - 2026-09-23
+
+### Added
+- Two workflow presets that bundle existing capabilities into one command: `--code-review PATH` (static source review over PATH, no live environment, with AI fix suggestions; authorized by default since it only reads local files) and `--web-pentest URL` (authenticated live-app pentest: full pipeline plus injection/OOB, browser execution, and API checks; still requires `--authorized`). Presets add no new engine behavior, so the evidence-first and authorization rules are unchanged.
+
+## [0.18.0] - 2026-09-23
+
+### Added
+- Local terminal viewer (`--tui`): an interactive curses browser over a run's findings (from `--json`, `--runs-dir`, or `--db`) with severity colors, an evidence pane, and severity filtering; falls back to a plain colored dump without a TTY. Standard library only.
+
 ## [0.17.1] - 2026-09-22
 
 ### Fixed

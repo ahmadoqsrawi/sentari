@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.18.0"
+__version__ = "0.19.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -28,6 +28,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--phases", default="all",
                    help="Comma-separated phase names to run, or 'all' (default).")
     p.add_argument("--list-phases", action="store_true", help="List available phases and exit.")
+    p.add_argument("--code-review", metavar="PATH",
+                   help="Workflow preset: source-code vulnerability review (SAST over PATH, "
+                        "no live environment) with AI fix suggestions. Local files, authorized by default.")
+    p.add_argument("--web-pentest", metavar="URL",
+                   help="Workflow preset: authenticated live-app pentest against URL "
+                        "(full pipeline + injection/OOB, browser execution, API checks). "
+                        "Still needs --authorized; pass --identity for authenticated testing.")
     p.add_argument("--no-safe-mode", action="store_true",
                    help="Allow more intrusive checks (default: safe mode on).")
     p.add_argument("--exploit", action="store_true",
@@ -252,8 +259,54 @@ def _load_stored_runs(db: str | None, runs_dir: str | None) -> dict:
     return _load_runs(Path(runs_dir or "runs"))
 
 
+def _expand_presets(args) -> None:
+    """Expand the convenience workflows into the underlying flags.
+
+    These map the two named workflows onto existing capabilities; they add no
+    new engine behavior, so the evidence-first and authorization rules still
+    apply exactly as if the operator had passed the flags by hand.
+    """
+    if args.code_review:
+        # Source-code review: static analysis only, no live environment, plus
+        # AI-validated fix suggestions. This reads local files with semgrep and
+        # attacks nothing, so it is authorized by default. The real path goes to
+        # the SAST engine; the target is a stable label (a filesystem path does
+        # not survive the host-based scope check), so scope trivially matches.
+        import os as _os
+        label = _os.path.basename(_os.path.normpath(args.code_review)) or "code-review"
+        args.sast = args.code_review
+        args.phases = "sast"
+        args.suggest_patches = True
+        if args.autofix_repo == ".":
+            args.autofix_repo = args.code_review
+        if not args.target:
+            args.target = label
+        if not args.scope:
+            args.scope = [label]
+        args.authorized = True
+    if args.web_pentest:
+        # Authenticated live-app pentest, PoC-validated: the full pipeline plus
+        # injection (OOB-confirmed), browser execution, and API checks. Live
+        # testing, so authorization stays explicit (the user must pass
+        # --authorized); scope defaults to the target host for convenience.
+        args.target = args.web_pentest
+        if not args.scope:
+            from .authorization import host_only
+            args.scope = [host_only(args.web_pentest)]
+        args.injection = True
+        args.browser = True
+        args.api_tests = True
+        if args.identity:
+            args.access_control = True
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+
+    if args.code_review and args.web_pentest:
+        print("error: use --code-review or --web-pentest, not both", file=sys.stderr)
+        return 2
+    _expand_presets(args)
 
     if args.serve:
         from .web import serve
