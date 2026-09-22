@@ -4,6 +4,16 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.11.0] - 2026-09-22
+
+### Added
+- **SSRF and XXE, confirmed out-of-band** (`oob.py`, `injection.py`, `phases/injection.py`, `--injection`, `--oob-host`): Sentari runs its own listener and injects a unique URL that points back to it; a finding is raised only when the target actually calls back, so it is a real proof, not an inference. XXE (which POSTs XML) runs only outside safe mode.
+- **NoSQL injection (differential)**: injects Mongo-style operators into existing parameters and flags a meaningful response change as a candidate.
+- **Mass assignment (gated)**: POSTs privileged fields and flags acceptance/echo as a candidate; runs only outside safe mode.
+- **Race-condition harness** (`--race-url`, `--race-count`, `--race-post`): fires concurrent requests and flags multiple successes on a should-be-once action.
+- **Stored XSS** (`browser.py`): outside safe mode, the browser submits a payload through a form, reloads, and confirms execution, alongside the existing reflected/DOM XSS.
+- **Fixed CI**: quoted the workflow step names containing a colon, which had made the YAML fail to parse.
+
 ## [0.10.0] - 2026-09-22
 
 ### Added

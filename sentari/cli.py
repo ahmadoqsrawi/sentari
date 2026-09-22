@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,6 +81,14 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Static analysis (SAST) over a source tree with semgrep.")
     p.add_argument("--sast-config", default="auto",
                    help="semgrep config/ruleset for --sast (default: auto).")
+    p.add_argument("--injection", action="store_true",
+                   help="Injection & logic tests: SSRF/XXE (OOB-confirmed), NoSQLi, mass assignment.")
+    p.add_argument("--oob-host", default="127.0.0.1",
+                   help="Address the target can reach for SSRF/XXE callbacks (default 127.0.0.1).")
+    p.add_argument("--race-url", metavar="URL",
+                   help="Fire concurrent requests at this URL to test for race conditions.")
+    p.add_argument("--race-count", type=int, default=20, help="Concurrent requests for --race-url.")
+    p.add_argument("--race-post", action="store_true", help="Use POST for --race-url (default GET).")
     p.add_argument("--access-control", action="store_true",
                    help="Broken-access-control / IDOR testing by comparing identities.")
     p.add_argument("--identity", action="append", default=[], metavar="NAME:HEADER:VALUE",
@@ -303,6 +311,13 @@ def main(argv: list[str] | None = None) -> int:
         options["cloud_audit"] = args.cloud_audit
     if args.proxy_ingest:
         options["proxy_ingest"] = args.proxy_ingest
+    if args.injection or args.race_url:
+        options["injection"] = True
+        options["oob_host"] = args.oob_host
+        if args.race_url:
+            options["race_url"] = args.race_url
+            options["race_count"] = args.race_count
+            options["race_post"] = args.race_post
     if args.access_control:
         options["access_control"] = True
         idents = []
