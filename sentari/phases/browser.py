@@ -43,7 +43,8 @@ class BrowserPhase(Phase):
             result.notes.append("Browser DAST: no web URLs to test.")
             return
         checks, err = browser.run_checks(urls, timeout=max(ctx.runner.default_timeout, 15),
-                                         active=not ctx.safe_mode)
+                                         active=not ctx.safe_mode,
+                                         extra_headers=ctx.options.get("extra_headers"))
         if err:
             result.notes.append(f"Browser DAST: {err}")
         for c in checks:

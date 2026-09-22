@@ -4,6 +4,17 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.20.0] - 2026-09-23
+
+### Added
+- Guided pentest setup: `sentari wizard` walks the five intake steps (Target & APIs, Scope, Repositories, Access, Context) with a Review & Launch summary, saves a reusable `pentest.json`, and launches. `--spec FILE` loads a spec directly.
+- `--exclude HOST|CIDR`: an off-limits deny-list enforced in the authorization gate; an excluded target is refused even when it also matches `--scope`.
+- `--header 'NAME: VALUE'`: custom headers sent with every request (API keys, JWTs, session cookies, WAF-bypass tokens), applied globally via urllib and to the browser phase.
+- `--code-review` now accepts a git URL (GitHub/GitLab/Bitbucket): the repo is shallow-cloned into a temp dir, scanned, and removed. A repo in a web pentest spec adds source review alongside the live phases.
+- `--verify-domain DOMAIN`: prove control of a domain via a `sentari-verify=<token>` DNS TXT record (Cloudflare-style) before an external scan; tokens are issued and checked per domain.
+
+These are intake/orchestration features that map onto existing capabilities; they add no new engine behavior, so the evidence-first and authorization rules are unchanged.
+
 ## [0.19.0] - 2026-09-23
 
 ### Added

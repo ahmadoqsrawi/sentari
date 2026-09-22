@@ -11,6 +11,16 @@ metadata:
 
 Dynamic testing of a running web app. Every high-impact finding is confirmed by a real effect, so there are no signature-only false positives to triage. Install, verification, and the full flag set are in the **penetration-testing-with-sentari** skill.
 
+## 0. Guided setup (optional but recommended)
+
+For a full engagement with authenticated access and source review, start from the wizard instead of assembling flags by hand:
+
+```bash
+sentari wizard            # Target & APIs, Scope, Repositories, Access, Context, then Review & Launch
+```
+
+It saves a reusable `pentest.json`; re-run or schedule it with `sentari --spec pentest.json`. The wizard collects everything below: the target and API specs, `--scope`/`--exclude` (off-limits hosts), a git repo for source review, test users (`--identity`) and global `--header` values (API keys/JWTs/cookies), and instructions. Prove domain control first with `sentari --verify-domain example.com` (a DNS TXT check). The wizard only builds a spec and hands it to the same engine, so the rules below still apply.
+
 ## 1. Confirm authorization and scope
 
 - The target is the user's or explicitly authorized. Never test a third-party site on a hunch.

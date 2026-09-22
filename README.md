@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-190%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-205%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -253,6 +253,29 @@ sentari --web-pentest https://app.example.com --authorized \
 
 `--code-review` runs only the SAST phase over local files (authorized by default, no target attacked). `--web-pentest` expands to the full pipeline plus injection, browser execution, and API checks against a live target; it still requires `--authorized`.
 
+### Guided setup (wizard)
+
+For a full pentest with authenticated access and source review, `sentari wizard` walks the same five steps as a hosted setup and ends in a Review & Launch summary:
+
+```bash
+sentari wizard
+```
+
+1. **Target & APIs** — target URL and any OpenAPI/Swagger/Postman specs; optionally prove domain control by DNS TXT.
+2. **Scope** — attackable hosts/CIDRs and off-limits ones (never touched).
+3. **Repositories** — a git repo (GitHub/GitLab/Bitbucket) adds source review and deeper analysis; without one, testing is black-box.
+4. **Access** — test users (Sentari signs in via a header, e.g. a session cookie) and custom headers (API keys, JWTs, WAF-bypass tokens) sent with every request.
+5. **Context** — instructions, focus areas, and reference docs.
+
+The wizard saves a reusable `pentest.json`, so a scan is repeatable and schedulable:
+
+```bash
+sentari --spec pentest.json          # re-run the same setup
+sentari --verify-domain example.com  # issue/check the DNS TXT ownership token
+```
+
+Each of these maps onto the flags above; the wizard and spec add no new engine behavior, so the authorization and evidence rules are unchanged.
+
 Optional extras:
 
 ```bash
@@ -299,6 +322,12 @@ sentari --list-phases
 |--------|-------------|
 | `--code-review PATH` | Workflow preset: source-code vulnerability review (SAST over `PATH`, no live environment) with AI fix suggestions. Local files, authorized by default. |
 | `--web-pentest URL` | Workflow preset: authenticated live-app pentest (full pipeline + injection/OOB, browser execution, API checks). Still needs `--authorized`; add `--identity` for authenticated testing. |
+| `sentari wizard` | Interactive "New Web App Pentest" setup (Target, Scope, Repositories, Access, Context), with Review & Launch; saves a reusable `pentest.json`. |
+| `--spec FILE` | Load a declarative pentest spec (`pentest.json`) written by the wizard. |
+| `--exclude HOST\|CIDR` | Off-limits host/CIDR, never touched even if in scope (repeatable). |
+| `--header 'NAME: VALUE'` | Custom header sent with every request: API key, JWT, session cookie, WAF-bypass token (repeatable). |
+| `--code-review URL` | `--code-review` also accepts a git URL (GitHub/GitLab/Bitbucket): shallow-cloned, scanned, removed. |
+| `--verify-domain DOMAIN` | Prove control of a domain via a DNS TXT record before an external scan, then exit. |
 | `--scope HOST` (or CIDR) | Authorized target(s). Repeatable. Required. |
 | `--authorized` | Attest you have permission to test the target. Required. |
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |

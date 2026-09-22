@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.19.0"
+__version__ = "0.20.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -23,6 +23,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("target", nargs="?", help="Target host, host:port, or URL")
     p.add_argument("--scope", action="append", default=[], metavar="HOST|CIDR",
                    help="Authorized target(s). Repeatable. Required to run.")
+    p.add_argument("--exclude", action="append", default=[], metavar="HOST|CIDR",
+                   help="Off-limits host/CIDR, never touched even if in scope (repeatable).")
     p.add_argument("--authorized", action="store_true",
                    help="Attest you have explicit written authorization to test the target.")
     p.add_argument("--phases", default="all",
@@ -35,6 +37,13 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Workflow preset: authenticated live-app pentest against URL "
                         "(full pipeline + injection/OOB, browser execution, API checks). "
                         "Still needs --authorized; pass --identity for authenticated testing.")
+    p.add_argument("--spec", metavar="FILE",
+                   help="Load a declarative pentest spec (pentest.json). See `sentari wizard`.")
+    p.add_argument("--header", action="append", default=[], metavar="NAME: VALUE",
+                   help="Custom header sent with every request (API key, JWT, cookie, "
+                        "WAF-bypass token). Repeatable.")
+    p.add_argument("--verify-domain", metavar="DOMAIN",
+                   help="Prove control of DOMAIN via a DNS TXT record, then exit.")
     p.add_argument("--no-safe-mode", action="store_true",
                    help="Allow more intrusive checks (default: safe mode on).")
     p.add_argument("--exploit", action="store_true",
@@ -301,12 +310,58 @@ def _expand_presets(args) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "wizard":
+        from . import wizard
+        return wizard.run(argv[1:])
+
     args = build_parser().parse_args(argv)
+
+    if args.verify_domain:
+        from . import domainverify
+        res = domainverify.verify(args.verify_domain)
+        if res.verified:
+            print(f"✓ {res.domain} verified: DNS TXT record found.")
+            return 0
+        print(domainverify.instructions(res.domain, res.token))
+        if res.error:
+            print(f"\nnote: {res.error}")
+        return 4
+
+    if args.spec:
+        from . import spec as spec_mod
+        try:
+            loaded = spec_mod.load(args.spec)
+            for note in spec_mod.apply(loaded, args):
+                print(f"note: {note}", file=sys.stderr)
+        except (OSError, ValueError) as e:
+            print(f"error: could not load spec {args.spec}: {e}", file=sys.stderr)
+            return 2
 
     if args.code_review and args.web_pentest:
         print("error: use --code-review or --web-pentest, not both", file=sys.stderr)
         return 2
     _expand_presets(args)
+
+    if args.header:
+        from . import nethdr
+        try:
+            nethdr.install(nethdr.parse_headers(args.header))
+        except ValueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+
+    if args.sast:
+        from . import repo
+        if repo.is_repo_url(args.sast):
+            print(f"Cloning {args.sast} for source review...", file=sys.stderr)
+            path, err = repo.clone(args.sast)
+            if err:
+                print(f"error: {err}", file=sys.stderr)
+                return 5
+            import atexit
+            atexit.register(repo.cleanup, path)
+            args.sast = path
 
     if args.serve:
         from .web import serve
@@ -466,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     audit = AuditLog(Path(args.audit_log))
-    scope = Scope.from_items(args.scope)
+    scope = Scope.from_items(args.scope, exclude=args.exclude)
     selected = {s.strip() for s in args.phases.split(",")} if args.phases != "all" else None
     options = {}
     if args.wordlist:
@@ -520,6 +575,9 @@ def main(argv: list[str] | None = None) -> int:
         options["jwt"] = args.jwt
     if args.browser:
         options["browser"] = True
+    if args.header:
+        from . import nethdr
+        options["extra_headers"] = nethdr.current()
     if args.sandbox:
         options["sandbox"] = {"image": args.sandbox_image} if args.sandbox_image else {}
 

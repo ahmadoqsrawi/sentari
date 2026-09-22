@@ -37,12 +37,14 @@ def _with_param(url: str, key: str, value: str) -> str:
     return urlunparse(p._replace(query=q))
 
 
-def run_checks(urls: list[str], timeout: int = 15, limit: int = 10, active: bool = False
+def run_checks(urls: list[str], timeout: int = 15, limit: int = 10, active: bool = False,
+               extra_headers: Optional[dict] = None
                ) -> tuple[list[dict], Optional[str]]:
     """Return (checks, error). Each check: url, type, detail, severity, confirmed, evidence.
 
     When `active` is set (outside safe mode), also submit a payload through forms
-    and re-load the page to detect stored XSS. This writes data to the app."""
+    and re-load the page to detect stored XSS. This writes data to the app.
+    `extra_headers` (custom headers) are sent with every browser request."""
     if not available():
         return [], "Playwright not installed (pip install \"sentari[browser]\" && playwright install chromium)"
     from playwright.sync_api import sync_playwright
@@ -53,7 +55,8 @@ def run_checks(urls: list[str], timeout: int = 15, limit: int = 10, active: bool
                 browser = pw.chromium.launch(headless=True)
             except Exception as e:
                 return [], f"could not launch browser (run `playwright install chromium`): {e}"
-            ctx = browser.new_context(ignore_https_errors=True)
+            ctx = browser.new_context(ignore_https_errors=True,
+                                      extra_http_headers=extra_headers or {})
             for url in urls[:limit]:
                 checks.extend(_probe_url(ctx, url, timeout))
                 if active:

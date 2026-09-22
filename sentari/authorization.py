@@ -23,15 +23,21 @@ class AuthorizationError(Exception):
 
 @dataclass
 class Scope:
-    """Allowlist of what may be tested. Empty scope authorizes nothing."""
+    """Allowlist of what may be tested, with an optional off-limits deny-list.
+
+    Empty scope authorizes nothing. A target that matches the exclude list is
+    refused even when it also matches the allowlist: off-limits always wins.
+    """
     hosts: set[str] = field(default_factory=set)      # exact hostnames
     cidrs: list[ipaddress._BaseNetwork] = field(default_factory=list)
+    exclude_hosts: set[str] = field(default_factory=set)
+    exclude_cidrs: list[ipaddress._BaseNetwork] = field(default_factory=list)
 
-    @classmethod
-    def from_items(cls, items: list[str]) -> "Scope":
+    @staticmethod
+    def _split(items: list[str]) -> tuple[set[str], list[ipaddress._BaseNetwork]]:
         hosts: set[str] = set()
         cidrs: list[ipaddress._BaseNetwork] = []
-        for raw in items:
+        for raw in items or []:
             item = raw.strip()
             if not item:
                 continue
@@ -39,24 +45,39 @@ class Scope:
                 cidrs.append(ipaddress.ip_network(item, strict=False))
             except ValueError:
                 hosts.add(item.lower())
-        return cls(hosts=hosts, cidrs=cidrs)
+        return hosts, cidrs
 
-    def contains(self, target: str) -> bool:
+    @classmethod
+    def from_items(cls, items: list[str], exclude: list[str] | None = None) -> "Scope":
+        hosts, cidrs = cls._split(items)
+        ex_hosts, ex_cidrs = cls._split(exclude or [])
+        return cls(hosts=hosts, cidrs=cidrs,
+                   exclude_hosts=ex_hosts, exclude_cidrs=ex_cidrs)
+
+    @staticmethod
+    def _matches(target: str, hosts: set[str],
+                 cidrs: list[ipaddress._BaseNetwork]) -> bool:
         t = host_only(target).lower()
-        if t in self.hosts:
+        if t in hosts:
             return True
         # direct IP match against CIDRs
         try:
             ip = ipaddress.ip_address(t)
-            return any(ip in net for net in self.cidrs)
+            return any(ip in net for net in cidrs)
         except ValueError:
             pass
         # resolve hostname and check every resolved IP against CIDRs
-        if self.cidrs:
+        if cidrs:
             for ip in _resolve_all(t):
-                if any(ipaddress.ip_address(ip) in net for net in self.cidrs):
+                if any(ipaddress.ip_address(ip) in net for net in cidrs):
                     return True
         return False
+
+    def contains(self, target: str) -> bool:
+        return self._matches(target, self.hosts, self.cidrs)
+
+    def excludes(self, target: str) -> bool:
+        return self._matches(target, self.exclude_hosts, self.exclude_cidrs)
 
     def is_empty(self) -> bool:
         return not self.hosts and not self.cidrs
@@ -109,6 +130,11 @@ def authorize(target: str, scope: Scope, authorized: bool, audit: AuditLog) -> N
         raise AuthorizationError(
             "Authorization not attested. Pass --authorized to confirm you have "
             "explicit written permission to test this target."
+        )
+    if scope.excludes(target):
+        audit.record("authorize.denied", target=target, reason="off_limits")
+        raise AuthorizationError(
+            f"Target {target!r} is on the off-limits list (--exclude). Refusing to run."
         )
     if not scope.contains(target):
         audit.record("authorize.denied", target=target, reason="out_of_scope")
