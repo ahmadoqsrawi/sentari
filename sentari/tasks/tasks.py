@@ -38,7 +38,37 @@ def run_assessment_sync(
     return payload
 
 
-# Register as a Celery task only when Celery is available.
+def scheduled_retest_sync() -> dict:
+    """Run the target from the schedule env vars, persist it, and diff against the
+    previous stored run. Driven by SENTARI_SCHEDULE_TARGET / _SCOPE / _DB."""
+    import os
+    target = os.getenv("SENTARI_SCHEDULE_TARGET")
+    if not target:
+        return {"error": "SENTARI_SCHEDULE_TARGET not set"}
+    scope = [s for s in (os.getenv("SENTARI_SCHEDULE_SCOPE") or target).split(",") if s]
+    db = os.getenv("SENTARI_SCHEDULE_DB")
+    from ..retest import findings_from_payload, delta_dicts
+    prev = None
+    if db:
+        from ..db import RunStore
+        store = RunStore(db)
+        try:
+            prev = store.latest_for_target(target)
+        finally:
+            store.close()
+    payload = run_assessment_sync(target, scope, True, db=db)
+    result = {"run_id": payload.get("run_id")}
+    if prev:
+        result["delta"] = {k: len(v) for k, v in
+                           delta_dicts(findings_from_payload(prev),
+                                       findings_from_payload(payload)).items()}
+    return result
+
+
+# Register as Celery tasks only when Celery is available.
 run_assessment_task = (
     app.task(name="sentari.run_assessment")(run_assessment_sync) if HAVE_CELERY else None
+)
+scheduled_retest_task = (
+    app.task(name="sentari.scheduled_retest")(scheduled_retest_sync) if HAVE_CELERY else None
 )

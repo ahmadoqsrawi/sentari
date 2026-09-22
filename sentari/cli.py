@@ -73,6 +73,8 @@ def build_parser() -> argparse.ArgumentParser:
                    default="webhook", help="SIEM transport (default webhook).")
     p.add_argument("--siem-token", help="SIEM auth token (else read from SENTARI_SIEM_TOKEN).")
     p.add_argument("--list-models", action="store_true", help="List known AI models per provider and exit.")
+    p.add_argument("--cloud", choices=["aws", "azure", "gcp"],
+                   help="Discover internet-facing assets in your cloud account and exit.")
     p.add_argument("--audit-log", default="sentari-audit.log", help="Append-only audit log path.")
     p.add_argument("--version", action="version", version=f"sentari {__version__}")
     return p
@@ -120,6 +122,18 @@ def main(argv: list[str] | None = None) -> int:
             for m in models:
                 print(f"  {m}")
         print("\nAny provider-specific model id also works via --ai-model.")
+        return 0
+
+    if args.cloud:
+        from .cloud_assets import discover
+        r = discover(args.cloud)
+        if r.error:
+            print(f"{r.provider}: {r.error}")
+            return 0
+        print(f"{r.provider}: {len(r.assets)} internet-facing asset(s)")
+        for a in r.assets:
+            print(f"  [{a.kind}] {a.identifier}" + (f" -> {a.endpoint}" if a.endpoint else ""))
+        print("\nBring the endpoints you own into scope, then scan them with --scope.")
         return 0
 
     if args.list_phases:

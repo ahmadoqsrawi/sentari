@@ -5,12 +5,14 @@ Add new phases here one at a time as they are implemented:
   5 = reporting, 6 = retest.
 """
 from .base import Phase, PhaseContext
+from .osint import OSINTPhase
 from .recon import ReconPhase
 from .scanning import ScanPhase
 from .vuln import VulnPhase
 from .verify import VerifyPhase
 
 PHASES: list[type[Phase]] = [
+    OSINTPhase,
     ReconPhase,
     ScanPhase,
     VulnPhase,
@@ -18,4 +20,4 @@ PHASES: list[type[Phase]] = [
 ]
 
 __all__ = ["Phase", "PhaseContext", "PHASES",
-           "ReconPhase", "ScanPhase", "VulnPhase", "VerifyPhase"]
+           "OSINTPhase", "ReconPhase", "ScanPhase", "VulnPhase", "VerifyPhase"]

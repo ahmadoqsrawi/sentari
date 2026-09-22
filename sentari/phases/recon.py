@@ -9,6 +9,7 @@ probes), and enriches with nmap service/version detection when nmap is present.
 """
 from __future__ import annotations
 
+import json
 import socket
 import time
 import urllib.error
@@ -55,7 +56,7 @@ class ReconPhase(Phase):
 
     def execute(self, ctx: PhaseContext, result: PhaseResult) -> None:
         host = _hostname(ctx.target)
-        result.tools_available = {"nmap": ctx.runner.available("nmap")}
+        result.tools_available = {t: ctx.runner.available(t) for t in ("nmap", "naabu", "httpx")}
 
         ips = self._resolve(ctx, result, host)
         if not ips:
@@ -63,6 +64,9 @@ class ReconPhase(Phase):
 
         if result.tools_available["nmap"]:
             open_ports = self._nmap(ctx, result, host)
+        elif result.tools_available["naabu"]:
+            result.notes.append("using naabu for port discovery.")
+            open_ports = self._naabu(ctx, result, host)
         else:
             result.notes.append("nmap not installed: using built-in TCP connect scan.")
             open_ports = self._builtin_portscan(ctx, result, host)
@@ -75,7 +79,10 @@ class ReconPhase(Phase):
         tp = target_port(ctx.target)
         fp_ports = sorted(p for p in open_ports if p in WEB_PORTS or p == tp)
         for port in fp_ports:
-            self._web_fingerprint(ctx, result, host, port)
+            if result.tools_available.get("httpx"):
+                self._httpx_fingerprint(ctx, result, host, port)
+            else:
+                self._web_fingerprint(ctx, result, host, port)
 
     # --- DNS ---
     def _resolve(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[str]:
@@ -153,6 +160,51 @@ class ReconPhase(Phase):
         if not services and ev.returncode != 0:
             result.notes.append(f"nmap exited {ev.returncode}: {ev.stderr[:200]}")
         return open_ports
+
+    # --- naabu fast port discovery ---
+    def _naabu(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[int]:
+        ev = ctx.runner.run(["naabu", "-host", host, "-silent"], tool="naabu", timeout=300)
+        ports: list[int] = []
+        for line in ev.stdout.splitlines():
+            line = line.strip()
+            tail = line.rsplit(":", 1)[-1] if ":" in line else ""
+            if tail.isdigit():
+                port = int(tail)
+                ports.append(port)
+                result.findings.append(Finding(
+                    title=f"Open port {port}/tcp", severity=Severity.INFO,
+                    description=f"naabu reports {port}/tcp open on {host}.",
+                    evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+                    location=f"{port}/tcp"))
+        return sorted(set(ports))
+
+    # --- httpx web fingerprint ---
+    def _httpx_fingerprint(self, ctx: PhaseContext, result: PhaseResult, host: str, port: int) -> None:
+        scheme = "https" if port in (443, 8443) else "http"
+        url = f"{scheme}://{host}:{port}"
+        ev = ctx.runner.run(["httpx", "-u", url, "-silent", "-json", "-title",
+                             "-tech-detect", "-status-code"], tool="httpx", timeout=60)
+        obj = {}
+        for line in ev.stdout.splitlines():
+            line = line.strip()
+            if line.startswith("{"):
+                try:
+                    obj = json.loads(line)
+                    break
+                except json.JSONDecodeError:
+                    continue
+        status = obj.get("status_code") or obj.get("status-code")
+        tech = obj.get("tech") or obj.get("technologies") or []
+        title = obj.get("title", "")
+        desc = f"{url} responded HTTP {status}."
+        if title:
+            desc += f" Title: {title}."
+        if tech:
+            desc += f" Tech: {', '.join(tech) if isinstance(tech, list) else tech}."
+        result.findings.append(Finding(
+            title=f"Web service on {port}/tcp", severity=Severity.INFO,
+            description=desc, evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+            location=url, metadata={"status": status, "tech": tech, "title": title}))
 
     # --- web fingerprint (built-in HTTP HEAD/GET) ---
     def _web_fingerprint(self, ctx: PhaseContext, result: PhaseResult, host: str, port: int) -> None:

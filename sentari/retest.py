@@ -49,6 +49,16 @@ def load_baseline(path: str) -> list[dict]:
     return findings_from_payload(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
+def delta_dicts(baseline: list[dict], current: list[dict]) -> dict:
+    """Diff two lists of finding dicts (used by scheduled retests, where both
+    sides come from stored run payloads)."""
+    base = {_sig_dict(d): d for d in baseline}
+    cur = {_sig_dict(d): d for d in current}
+    return {"fixed": [d for s, d in base.items() if s not in cur],
+            "still": [d for s, d in cur.items() if s in base],
+            "new": [d for s, d in cur.items() if s not in base]}
+
+
 def compare(baseline: list[dict], current: list[Finding]) -> RetestResult:
     base = {_sig_dict(d): d for d in baseline}
     cur = {_sig_finding(f): f for f in current}
