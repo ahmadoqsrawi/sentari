@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.20.0"
+__version__ = "0.21.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,6 +44,18 @@ def build_parser() -> argparse.ArgumentParser:
                         "WAF-bypass token). Repeatable.")
     p.add_argument("--verify-domain", metavar="DOMAIN",
                    help="Prove control of DOMAIN via a DNS TXT record, then exit.")
+    p.add_argument("--login-record", metavar="URL",
+                   help="Sign in through a real browser at URL, verify it, capture the "
+                        "session cookies as a --identity/--header value, then exit.")
+    p.add_argument("--login-user", help="Username/email for --login-record.")
+    p.add_argument("--login-pass", help="Password for --login-record.")
+    p.add_argument("--login-user-field", help="CSS selector for the username field (optional).")
+    p.add_argument("--login-pass-field", help="CSS selector for the password field (optional).")
+    p.add_argument("--login-submit", help="CSS selector for the submit control (optional).")
+    p.add_argument("--login-success", metavar="TEXT",
+                   help="Text expected on the page after a successful login (confirms it).")
+    p.add_argument("--login-artifacts", metavar="DIR", default="sentari-login",
+                   help="Where to save the login screenshot and response (default sentari-login/).")
     p.add_argument("--no-safe-mode", action="store_true",
                    help="Allow more intrusive checks (default: safe mode on).")
     p.add_argument("--exploit", action="store_true",
@@ -327,6 +339,34 @@ def main(argv: list[str] | None = None) -> int:
         if res.error:
             print(f"\nnote: {res.error}")
         return 4
+
+    if args.login_record:
+        if not (args.login_user and args.login_pass):
+            print("error: --login-record needs --login-user and --login-pass",
+                  file=sys.stderr)
+            return 2
+        from . import loginrec
+        rec = loginrec.record_login(
+            args.login_record, args.login_user, args.login_pass,
+            user_field=args.login_user_field, pass_field=args.login_pass_field,
+            submit=args.login_submit, success_text=args.login_success,
+            artifacts_dir=args.login_artifacts)
+        if rec.error:
+            print(f"error: {rec.error}", file=sys.stderr)
+            return 5
+        print(f"Login {'verified' if rec.verified else 'NOT verified'}: {rec.detail}")
+        if rec.screenshot:
+            print(f"  screenshot: {rec.screenshot}")
+        if rec.response:
+            print(f"  response:   {rec.response}")
+        if not rec.cookie_header:
+            print("  no session cookies were set (nothing to reuse).")
+            return 0 if rec.verified else 4
+        print(f"  cookies:    {len(rec.cookies)} captured")
+        print("\nUse the captured session with either:")
+        print(f'  --identity you:Cookie:"{rec.cookie_header}"')
+        print(f'  --header  "Cookie: {rec.cookie_header}"')
+        return 0 if rec.verified else 4
 
     if args.spec:
         from . import spec as spec_mod

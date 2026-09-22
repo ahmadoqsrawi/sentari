@@ -88,6 +88,12 @@ def _step_access(spec: dict) -> None:
     print("Test users: Sentari signs in via a header it sends (e.g. a session Cookie).")
     while _ask_yes("Add a test user?", False):
         name = _ask("  Name/email", "user")
+        if _ask_yes("  Record the login through a browser and capture the session?", False):
+            user = _record_login_user(name, spec.get("target", ""))
+            if user:
+                access["users"].append(user)
+                continue
+            print("  Falling back to entering the auth header manually.")
         header = _ask("  Auth header name", "Cookie")
         value = _ask("  Auth header value")
         access["users"].append({"name": name, "header": header, "value": value})
@@ -118,6 +124,36 @@ def _host(target: str) -> str:
         return ""
     from .authorization import host_only
     return host_only(target)
+
+
+def _record_login_user(name: str, target: str) -> dict | None:
+    """Drive a browser login and return a test-user entry with the captured
+    session cookie, or None if it could not be recorded."""
+    from . import loginrec
+    if not loginrec.available():
+        print('  Playwright not installed (pip install "sentari[browser]" '
+              "&& playwright install chromium).")
+        return None
+    login_url = _ask("  Login page URL", target)
+    username = _ask("  Username/email", name if "@" in name else "")
+    password = _ask("  Password")
+    success = _ask("  Text shown after a successful login (optional, confirms it)")
+    if not (login_url and username and password):
+        return None
+    print("  Recording login...")
+    rec = loginrec.record_login(login_url, username, password,
+                                success_text=success or None)
+    if rec.error:
+        print(f"  error: {rec.error}")
+        return None
+    print(f"  Login {'verified' if rec.verified else 'NOT verified'}: {rec.detail}")
+    if rec.screenshot:
+        print(f"  screenshot: {rec.screenshot}")
+    if not rec.cookie_header:
+        print("  no session cookies captured.")
+        return None
+    return {"name": name, "header": "Cookie", "value": rec.cookie_header,
+            "login_verified": rec.verified}
 
 
 def _run_verify(domain: str) -> None:

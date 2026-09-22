@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-205%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-208%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -264,7 +264,7 @@ sentari wizard
 1. **Target & APIs** — target URL and any OpenAPI/Swagger/Postman specs; optionally prove domain control by DNS TXT.
 2. **Scope** — attackable hosts/CIDRs and off-limits ones (never touched).
 3. **Repositories** — a git repo (GitHub/GitLab/Bitbucket) adds source review and deeper analysis; without one, testing is black-box.
-4. **Access** — test users (Sentari signs in via a header, e.g. a session cookie) and custom headers (API keys, JWTs, WAF-bypass tokens) sent with every request.
+4. **Access** — test users (Sentari can record a browser login and capture the session cookie for you, or you paste an auth header) and custom headers (API keys, JWTs, WAF-bypass tokens) sent with every request.
 5. **Context** — instructions, focus areas, and reference docs.
 
 The wizard saves a reusable `pentest.json`, so a scan is repeatable and schedulable:
@@ -272,6 +272,11 @@ The wizard saves a reusable `pentest.json`, so a scan is repeatable and schedula
 ```bash
 sentari --spec pentest.json          # re-run the same setup
 sentari --verify-domain example.com  # issue/check the DNS TXT ownership token
+
+# capture an authenticated session for the Access step
+sentari --login-record https://app.example.com/login \
+        --login-user alice@example.com --login-pass '****' \
+        --login-success "Sign out"
 ```
 
 Each of these maps onto the flags above; the wizard and spec add no new engine behavior, so the authorization and evidence rules are unchanged.
@@ -328,6 +333,7 @@ sentari --list-phases
 | `--header 'NAME: VALUE'` | Custom header sent with every request: API key, JWT, session cookie, WAF-bypass token (repeatable). |
 | `--code-review URL` | `--code-review` also accepts a git URL (GitHub/GitLab/Bitbucket): shallow-cloned, scanned, removed. |
 | `--verify-domain DOMAIN` | Prove control of a domain via a DNS TXT record before an external scan, then exit. |
+| `--login-record URL` (+ `--login-user`, `--login-pass`) | Sign in through a real browser, verify it, capture the session cookies as a ready-to-use `--identity`/`--header` value, then exit. |
 | `--scope HOST` (or CIDR) | Authorized target(s). Repeatable. Required. |
 | `--authorized` | Attest you have permission to test the target. Required. |
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |

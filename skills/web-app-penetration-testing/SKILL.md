@@ -21,6 +21,15 @@ sentari wizard            # Target & APIs, Scope, Repositories, Access, Context,
 
 It saves a reusable `pentest.json`; re-run or schedule it with `sentari --spec pentest.json`. The wizard collects everything below: the target and API specs, `--scope`/`--exclude` (off-limits hosts), a git repo for source review, test users (`--identity`) and global `--header` values (API keys/JWTs/cookies), and instructions. Prove domain control first with `sentari --verify-domain example.com` (a DNS TXT check). The wizard only builds a spec and hands it to the same engine, so the rules below still apply.
 
+To capture an authenticated session, record the login through a browser (or let the wizard do it inline in the Access step):
+
+```bash
+sentari --login-record https://app.example.com/login \
+        --login-user alice@example.com --login-pass '****' --login-success "Sign out"
+```
+
+It verifies the sign-in, saves a screenshot and the response as evidence, and prints the session cookie as a ready-to-use `--identity you:Cookie:"..."` value.
+
 ## 1. Confirm authorization and scope
 
 - The target is the user's or explicitly authorized. Never test a third-party site on a hunch.

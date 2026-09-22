@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from sentari import domainverify, nethdr, repo, spec as spec_mod
+from sentari import domainverify, loginrec, nethdr, repo, spec as spec_mod
 from sentari.authorization import AuditLog, AuthorizationError, Scope, authorize
 from sentari.cli import _expand_presets, build_parser
 
@@ -85,6 +85,30 @@ class TestDomainVerify(unittest.TestCase):
         t = domainverify.token_for("example.com")
         msg = domainverify.instructions("example.com", t)
         self.assertIn("sentari-verify=" + t, msg)
+
+
+class TestLoginRec(unittest.TestCase):
+    def test_cookie_header_builds_from_cookies(self):
+        h = loginrec._cookie_header(
+            [{"name": "session", "value": "abc"}, {"name": "csrf", "value": "z"},
+             {"name": "", "value": "skip"}])
+        self.assertEqual(h, "session=abc; csrf=z")
+
+    def test_record_without_playwright_degrades(self):
+        if loginrec.available():
+            self.skipTest("Playwright installed; degradation path not exercised")
+        rec = loginrec.record_login("https://x/login", "u", "p")
+        self.assertFalse(rec.verified)
+        self.assertIsNotNone(rec.error)
+        self.assertEqual(rec.cookie_header, "")
+
+    def test_recorded_user_maps_to_identity(self):
+        # a user dict with the extra login_verified flag still maps cleanly
+        user = {"name": "alice", "header": "Cookie", "value": "session=abc",
+                "login_verified": True}
+        idents, warns = spec_mod._identity_specs([user])
+        self.assertEqual(idents, ["alice:Cookie:session=abc"])
+        self.assertEqual(warns, [])
 
 
 class TestSpec(unittest.TestCase):

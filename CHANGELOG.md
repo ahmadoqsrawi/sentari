@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.21.0] - 2026-09-23
+
+### Added
+- Browser login recording (`--login-record URL` with `--login-user`/`--login-pass`): drives a real headless browser through a login form, verifies the sign-in (a caller-supplied success string, or the password field disappearing as the URL leaves the login page), captures the session cookies as a ready-to-use `--identity`/`--header` value, and saves a screenshot and the post-login response as evidence. Optional field selectors (`--login-user-field`/`--login-pass-field`/`--login-submit`). The wizard's Access step can record a login inline. Needs Playwright; degrades honestly without it.
+
 ## [0.20.0] - 2026-09-23
 
 ### Added
