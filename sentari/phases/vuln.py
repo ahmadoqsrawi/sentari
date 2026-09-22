@@ -53,6 +53,7 @@ class VulnPhase(Phase):
             result.notes.append("nuclei not installed: skipping template scan (no fabrication).")
 
         self._sqlmap(ctx, result, urls)
+        self._openvas(ctx, result)
 
     # --- nuclei ---
     def _nuclei(self, ctx: PhaseContext, result: PhaseResult, urls: list[str]) -> None:
@@ -96,6 +97,32 @@ class VulnPhase(Phase):
             result.notes.append(f"nuclei exited {ev.returncode}: {ev.stderr[:200]}")
         else:
             result.notes.append(f"nuclei reported {count} match(es).")
+
+    # --- OpenVAS / Greenbone (optional external source) ---
+    def _openvas(self, ctx: PhaseContext, result: PhaseResult) -> None:
+        if not ctx.options.get("openvas"):
+            return
+        from .. import openvas
+        target_ip = (ctx.shared.get("ips") or [None])[0] or ctx.shared.get("host") or ctx.target
+        rows, err = openvas.fetch_results(target_ip)
+        if err:
+            result.notes.append(f"OpenVAS: {err}")
+            return
+        sev_map = {"critical": Severity.CRITICAL, "high": Severity.HIGH,
+                   "medium": Severity.MEDIUM, "low": Severity.LOW, "info": Severity.INFO}
+        for row in rows:
+            body = (f"name={row['name']}\nhost={row['host']}\ncvss={row['cvss']}\n"
+                    f"oid={row['oid']}")
+            ev = ctx.runner.record_internal(["openvas-result", row["oid"] or row["name"]],
+                                            0, body)
+            result.findings.append(Finding(
+                title=f"{row['name']} (OpenVAS)",
+                severity=sev_map.get(row["severity"], Severity.INFO),
+                description=f"Greenbone/OpenVAS reported '{row['name']}' on {row['host']}.",
+                evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+                location=row["host"], metadata={"source": "openvas", "oid": row["oid"],
+                                                "cvss": {"score": row["cvss"]}}))
+        result.notes.append(f"OpenVAS reported {len(rows)} result(s).")
 
     # --- sqlmap (gated) ---
     def _sqlmap(self, ctx: PhaseContext, result: PhaseResult, urls: list[str]) -> None:

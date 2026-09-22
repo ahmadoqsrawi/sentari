@@ -71,20 +71,49 @@ def discover_aws() -> CloudResult:
 
 
 def discover_azure() -> CloudResult:
+    import os
     out = CloudResult(provider="azure")
-    if _imp("azure.mgmt.network") is None or _imp("azure.identity") is None:
+    net = _imp("azure.mgmt.network")
+    ident = _imp("azure.identity")
+    if net is None or ident is None:
         out.error = "azure SDK not installed (pip install azure-mgmt-network azure-identity)"
         return out
-    out.error = "Azure discovery needs a subscription id and credentials; configure and extend."
+    sub = os.getenv("AZURE_SUBSCRIPTION_ID")
+    if not sub:
+        out.error = "set AZURE_SUBSCRIPTION_ID"
+        return out
+    try:
+        cred = ident.DefaultAzureCredential()
+        client = net.NetworkManagementClient(cred, sub)
+        for ip in client.public_ip_addresses.list_all():
+            if getattr(ip, "ip_address", None):
+                out.assets.append(Asset("public-ip", ip.name, ip.ip_address))
+    except Exception as e:
+        out.error = f"Azure discovery failed: {type(e).__name__}: {e}"
     return out
 
 
 def discover_gcp() -> CloudResult:
+    import os
     out = CloudResult(provider="gcp")
-    if _imp("google.cloud.compute_v1") is None:
+    compute = _imp("google.cloud.compute_v1")
+    if compute is None:
         out.error = "google-cloud-compute not installed (pip install google-cloud-compute)"
         return out
-    out.error = "GCP discovery needs a project id and credentials; configure and extend."
+    project = os.getenv("GOOGLE_CLOUD_PROJECT")
+    if not project:
+        out.error = "set GOOGLE_CLOUD_PROJECT"
+        return out
+    try:
+        client = compute.InstancesClient()
+        for zone, scoped in client.aggregated_list(project=project):
+            for inst in getattr(scoped, "instances", []) or []:
+                for nic in inst.network_interfaces:
+                    for ac in getattr(nic, "access_configs", []) or []:
+                        if getattr(ac, "nat_i_p", None):
+                            out.assets.append(Asset("gce-instance", inst.name, ac.nat_i_p, zone))
+    except Exception as e:
+        out.error = f"GCP discovery failed: {type(e).__name__}: {e}"
     return out
 
 
