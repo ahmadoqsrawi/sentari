@@ -78,6 +78,12 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - It controls only the flow. The target is fixed, findings still come from the tools with evidence, and scope and safe mode are enforced on every step
 - If no model is available, or the model returns an invalid action, it falls back to the normal phase order
 
+### 🕹️ AI agent
+- With `--agent`, the model calls tools directly in a loop (dns, port scan, http, nuclei, gated sqlmap), plans each step from the real results, and can author findings
+- A finding is accepted only when it cites an `evidence_id` a tool actually returned; a verifier pass then drops any model-authored finding the evidence does not support
+- The host is fixed and arguments are validated, so an injected instruction in a target's response cannot redirect the host or run an arbitrary command
+- `--goal "focus on the API"` gives the agent a natural-language objective; with no model it runs a fixed recon sequence
+
 ### 📋 Compliance mapping
 - Tags findings with OWASP Top 10 (2021), CWE, and NIST 800-53 references
 - Shown in the console, the HTML report, and the JSON output
@@ -191,6 +197,7 @@ sentari --list-phases
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |
 | `--ai` | Grounded AI triage of the findings. |
 | `--autopilot` | Let the AI choose which phases to run (findings stay tool-backed). |
+| `--agent` / `--goal` | Full AI agent: the model calls tools directly, findings stay evidence-anchored. |
 | `--ai-provider` / `--ai-model` / `--ai-base-url` | Choose the provider and model. |
 | `--serve` | Start the read-only web dashboard instead of scanning. |
 | `--siem-url` / `--siem-type` | Ship findings to a SIEM (webhook, splunk, elasticsearch, syslog). |

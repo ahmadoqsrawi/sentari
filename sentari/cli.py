@@ -57,6 +57,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--autopilot", action="store_true",
                    help="Let the AI choose which phases to run (findings stay tool-backed).")
     p.add_argument("--autopilot-steps", type=int, default=8, help="Max autopilot steps (default 8).")
+    p.add_argument("--agent", action="store_true",
+                   help="Full AI agent: the model calls tools directly (findings stay evidence-anchored).")
+    p.add_argument("--goal", help="Natural-language goal for the agent (e.g. 'focus on the API').")
+    p.add_argument("--agent-steps", type=int, default=14, help="Max agent tool calls (default 14).")
     p.add_argument("--ai", action="store_true",
                    help="Grounded AI triage of the real findings (prioritize/chain/remediate).")
     p.add_argument("--ai-provider", help="AI provider: openai, anthropic, google, openrouter, ollama.")
@@ -150,7 +154,34 @@ def main(argv: list[str] | None = None) -> int:
 
     from .engine import run_assessment
     try:
-        if args.autopilot:
+        if args.agent:
+            from .agent import run_agent
+            from .ai import get_provider
+            provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
+            ar = run_agent(
+                args.target, scope, args.authorized, audit, provider,
+                goal=args.goal, safe_mode=not args.no_safe_mode, timeout=args.timeout,
+                max_steps=args.agent_steps,
+            )
+            results = ar.results
+            if not args.no_compliance:
+                from . import compliance
+                compliance.apply(results)
+            if not args.no_anomaly:
+                from . import anomaly
+                anomaly.apply(results)
+            if ar.note:
+                print(ar.note)
+            print("\n-- agent transcript --")
+            for t in ar.transcript:
+                if "error" in t:
+                    print(f"  step {t.get('step')}: {t['error']}")
+                else:
+                    obs = t.get("observation", "")
+                    print(f"  {t.get('step','-')}. {t['tool']} -> {obs[:120]}")
+            audit.record("agent.done", target=args.target, steps=len(ar.transcript),
+                         provider=ar.provider)
+        elif args.autopilot:
             from .autopilot import run_autopilot
             from .ai import get_provider
             provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)

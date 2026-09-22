@@ -12,6 +12,7 @@ All notable changes to Sentari are recorded here. The format is based on
 - **Model catalog** (`sentari/ai/catalog.py`): `--list-models` lists known models per provider; any provider-specific id still works.
 - **Anomaly flagging** (`sentari/anomaly.py`): tags findings whose evidence is unusual for the target as worth manual review. It is a prioritization aid, never a vulnerability claim, and it creates no findings. Disable with `--no-anomaly`.
 - **AI autopilot** (`sentari/autopilot.py`, `--autopilot`): the model picks which phase to run next and when to stop. It controls only the flow; the target is fixed, findings still come from the tools with evidence, scope and safe mode are enforced on every step, and an invalid or missing model choice falls back to the normal phase order.
+- **AI agent** (`sentari/agent/`, `--agent`, `--goal`): a function-calling loop where the model calls tools directly (dns, port scan, http, nuclei, gated sqlmap) and can author findings. A finding is accepted only with a real `evidence_id`, and a verifier pass drops model-authored findings the evidence does not support. The host is fixed and arguments are validated, so a prompt injection in a target response cannot redirect the host or run an arbitrary command. With no model it runs a fixed recon sequence.
 
 ## [0.1.0] - 2026-09-22
 

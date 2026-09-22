@@ -1,0 +1,122 @@
+"""The function-calling agent loop.
+
+The model plans and calls tools one at a time; the dispatcher runs each against
+the real target and returns an observation. The model may author findings, but
+only through record_finding with a real evidence_id, and a verifier pass then
+drops any model-authored finding the cited evidence does not support. Tool-
+created facts (DNS, open ports, nuclei matches) are kept as they are.
+
+With no usable provider it runs a fixed recon sequence, so it still does real
+work without inventing anything.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Optional
+
+from ..authorization import AuditLog, Scope, authorize
+from ..models import PhaseResult
+from ..runner import ToolRunner
+from .tools import TOOL_SPECS, ToolDispatcher
+
+
+@dataclass
+class AgentRun:
+    results: list[PhaseResult] = field(default_factory=list)
+    transcript: list[dict] = field(default_factory=list)
+    provider: str = ""
+    note: Optional[str] = None
+
+
+def _system(safe_mode: bool) -> str:
+    tools = "\n".join(f"- {t['name']}({', '.join(t['args'])}): {t['desc']}" for t in TOOL_SPECS)
+    msg = ("You are an autonomous security assessment agent working against one fixed "
+           "target. Call one tool per step. To claim a finding you MUST call "
+           "record_finding with an evidence_id returned by an earlier tool; never assert "
+           "a vulnerability without evidence. When done, call finish. Respond with ONLY "
+           'JSON: {"tool":"<name>","args":{...}}.\nTools:\n' + tools)
+    if safe_mode:
+        msg += "\n(safe mode is ON; intrusive tools are disabled)"
+    return msg
+
+
+def _result(disp: ToolDispatcher, runner: ToolRunner) -> PhaseResult:
+    ts = datetime.now(timezone.utc).isoformat()
+    return PhaseResult(phase="agent", started_at=ts, ended_at=ts,
+                       findings=disp.findings, evidence=runner.evidence)
+
+
+def run_agent(target: str, scope: Scope, authorized: bool, audit: AuditLog, provider,
+              *, goal: Optional[str] = None, safe_mode: bool = True, timeout: int = 120,
+              max_steps: int = 14, verify: bool = True) -> AgentRun:
+    authorize(target, scope, authorized, audit)
+    runner = ToolRunner(timeout)
+    disp = ToolDispatcher(runner, target, safe_mode)
+    out = AgentRun(provider=getattr(provider, "name", "none"))
+
+    ok, reason = provider.available() if provider is not None else (False, "no provider")
+    if not ok:
+        out.note = f"AI provider unavailable ({reason}); ran a fixed recon sequence."
+        for tool, args in [("dns_lookup", {}), ("port_scan", {}),
+                           ("http_get", {"path": "/"}), ("run_nuclei", {})]:
+            obs = disp.dispatch(tool, args)
+            out.transcript.append({"tool": tool, "args": args, "observation": obs})
+        out.results = [_result(disp, runner)]
+        return out
+
+    convo: list[str] = []
+    if goal:
+        convo.append(f"Goal: {goal}")
+    for step in range(1, max_steps + 1):
+        user = "\n".join(convo[-30:]) + "\n\nNext action as JSON:"
+        try:
+            raw = provider.complete(_system(safe_mode), user, max_tokens=400)
+            obj = json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
+            tool = str(obj.get("tool", ""))
+            args = obj.get("args", {}) or {}
+        except Exception:
+            out.transcript.append({"step": step, "error": "unparseable model reply"})
+            break
+        audit.record("agent.step", target=target, step=step, tool=tool)
+        if tool == "finish":
+            out.transcript.append({"step": step, "tool": "finish", "args": args})
+            break
+        obs = disp.dispatch(tool, args)
+        out.transcript.append({"step": step, "tool": tool, "args": args, "observation": obs})
+        convo.append(f"[{step}] {tool}({json.dumps(args)}) -> {obs}")
+
+    if verify and disp.findings:
+        _verify(provider, disp, runner, audit, target)
+    out.results = [_result(disp, runner)]
+    return out
+
+
+def _verify(provider, disp: ToolDispatcher, runner: ToolRunner,
+            audit: AuditLog, target: str) -> None:
+    """Drop model-authored findings the cited evidence does not support."""
+    evidence = {e.id: e for e in runner.evidence}
+    kept, dropped = [], 0
+    for f in disp.findings:
+        if (f.metadata or {}).get("authored_by") != "agent":
+            kept.append(f)   # tool-created facts stay
+            continue
+        e = evidence.get(f.evidence_ids[0]) if f.evidence_ids else None
+        snippet = e.stdout[:800] if e else ""
+        q = (f"Evidence:\n{snippet}\n\nClaim: [{f.severity.value}] {f.title} - "
+             f"{f.description}\nDoes the evidence support this claim? Answer YES or NO.")
+        try:
+            ans = provider.complete(
+                "You are a strict verifier. Answer YES only if the evidence clearly "
+                "supports the claim, otherwise NO.", q, max_tokens=5)
+            if ans.strip().upper().startswith("YES"):
+                f.metadata = {**f.metadata, "verified": True}
+                kept.append(f)
+            else:
+                dropped += 1
+        except Exception:
+            kept.append(f)   # on verifier error, keep rather than silently drop
+    disp.findings[:] = kept
+    if dropped:
+        audit.record("agent.verify", target=target, dropped=dropped)
