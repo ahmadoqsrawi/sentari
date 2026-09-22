@@ -4,6 +4,13 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.17.1] - 2026-09-22
+
+### Fixed
+- OOB listener now binds IPv6 addresses (AF_INET6) and brackets IPv6 URLs, so out-of-band SSRF/XXE/command-injection checks work on IPv6 hosts instead of hanging.
+- AI provider clients (OpenAI, Anthropic) now use a bounded timeout and limited retries, so a stalled model call cannot hang an autonomous run.
+- Injection phase caps endpoints (default 8, override with injection_max_urls) so it does not flood a live target.
+
 ## [0.17.0] - 2026-09-22
 
 ### Added

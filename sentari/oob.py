@@ -12,6 +12,7 @@ the target can reach (set host explicitly) so the callback can arrive.
 """
 from __future__ import annotations
 
+import socket
 import threading
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -47,7 +48,12 @@ class OOBListener:
             def do_POST(self):
                 self._record()
 
-        self._httpd = ThreadingHTTPServer((self.host, self.port), Handler)
+        # bind IPv6 when the host is an IPv6 literal; default HTTPServer is IPv4
+        class _Server(ThreadingHTTPServer):
+            address_family = socket.AF_INET6 if ":" in self.host else socket.AF_INET
+            allow_reuse_address = True
+
+        self._httpd = _Server((self.host, self.port), Handler)
         self.port = self._httpd.server_address[1]
         self._thread = threading.Thread(target=self._httpd.serve_forever, daemon=True)
         self._thread.start()
@@ -62,7 +68,8 @@ class OOBListener:
         return "oob" + uuid.uuid4().hex[:12]
 
     def url(self, token: str) -> str:
-        return f"http://{self.host}:{self.port}/{token}"
+        host = f"[{self.host}]" if ":" in self.host else self.host  # bracket IPv6
+        return f"http://{host}:{self.port}/{token}"
 
     def hit(self, token: str) -> bool:
         return token in self._hits

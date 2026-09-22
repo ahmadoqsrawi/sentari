@@ -80,7 +80,10 @@ class InjectionPhase(Phase):
         if not opts.get("injection"):
             return
 
-        urls = self._urls(ctx)[:25]
+        # cap endpoints so injection does not flood a live target; override with
+        # options["injection_max_urls"] when a wider sweep is wanted.
+        max_urls = int(opts.get("injection_max_urls", 8))
+        urls = self._urls(ctx)[:max_urls]
         from .. import oob
         oob_host = opts.get("oob_host", "127.0.0.1")
         with oob.OOBListener(host=oob_host) as listener:

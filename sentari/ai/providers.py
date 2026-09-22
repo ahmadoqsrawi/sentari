@@ -64,7 +64,9 @@ class OpenAICompatProvider(LLMProvider):
 
     def _client(self):
         openai = importlib.import_module("openai")
-        return openai.OpenAI(api_key=self.api_key, base_url=self.base_url or None)
+        # bounded timeout + few retries so a stalled call can never hang a run
+        return openai.OpenAI(api_key=self.api_key, base_url=self.base_url or None,
+                             timeout=90.0, max_retries=2)
 
     def complete(self, system: str, user: str, max_tokens: int = 1500) -> str:
         r = self._client().chat.completions.create(
@@ -121,7 +123,7 @@ class AnthropicProvider(LLMProvider):
 
     def complete(self, system: str, user: str, max_tokens: int = 1500) -> str:
         anthropic = importlib.import_module("anthropic")
-        client = anthropic.Anthropic(api_key=self.api_key)
+        client = anthropic.Anthropic(api_key=self.api_key, timeout=90.0, max_retries=2)
         r = client.messages.create(
             model=self.model, max_tokens=max_tokens, system=system,
             messages=[{"role": "user", "content": user}],
@@ -135,7 +137,7 @@ class AnthropicProvider(LLMProvider):
         """Anthropic tool turn. Converts the OpenAI-format `tools` and the
         normalized transcript into Anthropic's tool_use / tool_result blocks."""
         anthropic = importlib.import_module("anthropic")
-        client = anthropic.Anthropic(api_key=self.api_key)
+        client = anthropic.Anthropic(api_key=self.api_key, timeout=90.0, max_retries=2)
         a_tools = [{"name": t["function"]["name"],
                     "description": t["function"].get("description", ""),
                     "input_schema": t["function"].get("parameters", {"type": "object"})}
