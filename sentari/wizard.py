@@ -62,8 +62,43 @@ def _step_target(spec: dict) -> None:
         if host and _ask_yes(f"Verify you control {host} via DNS TXT now?", False):
             _run_verify(host)
         spec["api_specs"] = _ask_list("API specs (OpenAPI/Swagger/Postman files or URLs)")
+        _ask_oob(spec, host)
     else:
         spec["target"] = ""
+
+
+def _is_external(host: str) -> bool:
+    """True if the host is a public target (not localhost/a private IP)."""
+    if not host or host in ("localhost",):
+        return False
+    import ipaddress
+    try:
+        ip = ipaddress.ip_address(host)
+        return not (ip.is_private or ip.is_loopback or ip.is_link_local)
+    except ValueError:
+        return True  # a hostname; assume external
+
+
+def _ask_oob(spec: dict, host: str) -> None:
+    """For an external target, offer a public OOB callback so SSRF/XXE/command
+    injection can actually be confirmed (the target must reach the listener)."""
+    if not _is_external(host):
+        spec["oob"] = {"host": "127.0.0.1", "port": 0}
+        return
+    print("SSRF/XXE/command-injection are confirmed by the target calling back to a")
+    print("listener. For an external target that listener must be reachable from the")
+    print("internet (a public IP and an open port).")
+    if not _ask_yes("Enable public OOB callbacks for this target?", True):
+        spec["oob"] = {"host": "127.0.0.1", "port": 0}
+        return
+    from . import oob as oob_mod
+    detected = oob_mod.detect_public_host()
+    host_ans = _ask("  Public callback host (blank = auto-detect this VPS's IP)",
+                    detected or "")
+    port_ans = _ask("  OOB port to open in the firewall", "8611")
+    spec["oob"] = {"host": host_ans or "auto",
+                   "port": int(port_ans) if port_ans.isdigit() else 8611}
+    print(f"  Open this port so callbacks can arrive:  sudo ufw allow {spec['oob']['port']}/tcp")
 
 
 def _step_scope(spec: dict) -> None:

@@ -29,6 +29,7 @@ TEMPLATE = {
         },
     },
     "context": {"instructions": "", "documentation": []},
+    "oob": {"host": "127.0.0.1", "port": 0},   # 'auto' + a fixed port for external targets
     "safe_mode": True,
     "authorized": False,                 # set true only with written authorization
 }
@@ -117,6 +118,12 @@ def apply(spec: dict, args) -> list[str]:
         notes.append("documentation files are informational; API specs belong in "
                      "'api_specs' so they become scan targets.")
 
+    oob = spec.get("oob") or {}
+    if oob.get("host"):
+        args.oob_host = oob["host"]
+    if oob.get("port"):
+        args.oob_port = int(oob["port"])
+
     if spec.get("safe_mode") is False:
         args.no_safe_mode = True
     if spec.get("authorized") is True:
@@ -155,6 +162,9 @@ def summary(spec: dict) -> str:
     if access.get("headers"):
         lines.append("Headers     : " + ", ".join(
             f"{k}: ***" for k in access["headers"]))
+    oob = spec.get("oob") or {}
+    if oob.get("host") and oob["host"] not in ("127.0.0.1", "localhost"):
+        lines.append(f"OOB callback: {oob['host']}:{oob.get('port', 0)} (public)")
     instr = ((spec.get("context") or {}).get("instructions") or "").strip()
     if instr:
         lines.append(f"Instructions: {instr[:80]}")

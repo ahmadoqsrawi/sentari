@@ -4,6 +4,14 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.23.0] - 2026-09-23
+
+### Added
+- Public out-of-band callbacks for external targets: `--oob-host auto` detects this host's public IP, `--oob-port` fixes the listener port so it can be opened in the firewall, and the listener now binds all interfaces while advertising the public host. This makes SSRF/XXE/command-injection confirmable against real external sites (the model for a hosted deployment), not just a target on the same box. The wizard offers public OOB for any external target and prints the firewall command; specs carry an `oob` block.
+
+### Changed
+- The injection phase warns when the OOB host is localhost outside safe mode, since callbacks can then only be confirmed for a target that can reach this host.
+
 ## [0.22.0] - 2026-09-23
 
 ### Added

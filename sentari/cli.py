@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.22.0"
+__version__ = "0.23.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -130,7 +130,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--injection", action="store_true",
                    help="Injection & logic tests: SSRF/XXE (OOB-confirmed), NoSQLi, mass assignment.")
     p.add_argument("--oob-host", default="127.0.0.1",
-                   help="Address the target can reach for SSRF/XXE callbacks (default 127.0.0.1).")
+                   help="Address the target can reach for SSRF/XXE callbacks (default 127.0.0.1). "
+                        "Use 'auto' to detect this host's public IP (for external targets).")
+    p.add_argument("--oob-port", type=int, default=0,
+                   help="Fixed port for the OOB callback listener, so you can open it in the "
+                        "firewall (default 0: a random free port, fine only for local targets).")
     p.add_argument("--race-url", metavar="URL",
                    help="Fire concurrent requests at this URL to test for race conditions.")
     p.add_argument("--race-count", type=int, default=20, help="Concurrent requests for --race-url.")
@@ -560,6 +564,21 @@ def main(argv: list[str] | None = None) -> int:
         print("error: a target is required (or use --list-phases)", file=sys.stderr)
         return 2
 
+    args.oob_bind = None
+    if args.oob_host == "auto":
+        from . import oob as _oob
+        pub = _oob.detect_public_host()
+        if not pub:
+            print("error: --oob-host auto could not detect a public IP; "
+                  "set --oob-host to your VPS public address", file=sys.stderr)
+            return 5
+        args.oob_host = pub
+        args.oob_bind = "0.0.0.0"
+        shown_port = args.oob_port or "<random>"
+        print(f"OOB callbacks will use http://{pub}:{shown_port}/ (bound to 0.0.0.0). "
+              f"Open port {shown_port} in the firewall so external targets can reach it.",
+              file=sys.stderr)
+
     audit = AuditLog(Path(args.audit_log))
     scope = Scope.from_items(args.scope, exclude=args.exclude)
     selected = {s.strip() for s in args.phases.split(",")} if args.phases != "all" else None
@@ -586,6 +605,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.injection or args.race_url:
         options["injection"] = True
         options["oob_host"] = args.oob_host
+        options["oob_port"] = args.oob_port
+        if args.oob_bind:
+            options["oob_bind"] = args.oob_bind
         if args.race_url:
             options["race_url"] = args.race_url
             options["race_count"] = args.race_count
@@ -670,6 +692,9 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         options["injection"] = True
         options.setdefault("oob_host", args.oob_host)
+        options.setdefault("oob_port", args.oob_port)
+        if args.oob_bind:
+            options.setdefault("oob_bind", args.oob_bind)
         options["browser"] = True
         options["api_tests"] = True
         options.setdefault("exploit", {"modules": args.exploit_module, "exfil_sim": args.exfil_sim,

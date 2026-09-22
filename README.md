@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-211%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-214%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -78,6 +78,7 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 - **NoSQL injection** (differential), **mass assignment** (gated), and **insecure-deserialization** detection (serialized blobs in params/cookies)
 - **Race conditions** (`--race-url`) and **session fixation** (`--session-fixation`)
 - XXE and mass assignment POST data, so they run only outside safe mode
+- **External targets:** OOB confirmation needs the target to reach Sentari's listener, so for a public site (behind Cloudflare or not) run with `--oob-host auto` (or your VPS public IP) and a fixed `--oob-port` opened in the firewall. Against `127.0.0.1` these checks only confirm for a target on the same host
 
 ### 🧾 Business logic (`--workflow FILE`)
 - Replays an operator-defined request sequence (with variable capture) and flags steps that succeed when they should fail (workflow/authorization bypass, price/quantity tampering) or return an unexpected status
@@ -347,7 +348,7 @@ sentari --list-phases
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
 | `--openvas` / `--nexpose` | Pull results from a configured OpenVAS (`GVM_*`) or Nexpose/InsightVM (`NEXPOSE_*`) instance. |
 | `--openapi SRC` (+ `--openapi-base-url`) | Ingest an OpenAPI/Swagger/Postman spec; its endpoints become scan targets. |
-| `--injection` (+ `--oob-host`) | SSRF/XXE/cmdi (OOB-confirmed), SSTI, NoSQLi, mass assignment, deserialization. |
+| `--injection` (+ `--oob-host`, `--oob-port`) | SSRF/XXE/cmdi (OOB-confirmed), SSTI, NoSQLi, mass assignment, deserialization. For an **external** target use `--oob-host auto` (public IP) and a fixed `--oob-port` you open in the firewall, so callbacks can arrive. |
 | `--race-url` / `--session-fixation` | Race-condition harness / session-fixation check. |
 | `--workflow FILE` | Replay an operator-defined workflow to test business logic. |
 | `--shell` (+ `--shell-image`) | Interactive shell in a disposable Docker container (exploit dev). |

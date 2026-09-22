@@ -88,7 +88,14 @@ class InjectionPhase(Phase):
         urls = self._urls(ctx)[:max_urls]
         from .. import oob
         oob_host = opts.get("oob_host", "127.0.0.1")
-        with oob.OOBListener(host=oob_host) as listener:
+        oob_port = int(opts.get("oob_port", 0))
+        oob_bind = opts.get("oob_bind")
+        if oob_host in ("127.0.0.1", "localhost") and not ctx.safe_mode:
+            result.notes.append(
+                "OOB host is localhost: SSRF/XXE/command-injection callbacks can only "
+                "be confirmed for a target that can reach this host. For an external "
+                "target set --oob-host to a public address and open --oob-port.")
+        with oob.OOBListener(host=oob_host, port=oob_port, bind=oob_bind) as listener:
             self._ssrf(ctx, result, urls, listener, timeout)
             self._cmdi(ctx, result, urls, listener, timeout)
             if not ctx.safe_mode:

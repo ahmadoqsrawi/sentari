@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from sentari import domainverify, loginrec, nethdr, repo, spec as spec_mod, wizard
+from sentari import domainverify, loginrec, nethdr, oob, repo, spec as spec_mod, wizard
 from sentari.authorization import AuditLog, AuthorizationError, Scope, authorize
 from sentari.cli import _expand_presets, build_parser
 
@@ -85,6 +85,30 @@ class TestDomainVerify(unittest.TestCase):
         t = domainverify.token_for("example.com")
         msg = domainverify.instructions("example.com", t)
         self.assertIn("sentari-verify=" + t, msg)
+
+
+class TestOOB(unittest.TestCase):
+    def test_bind_separate_from_advertised_host(self):
+        # advertise a public host but bind to all interfaces
+        with oob.OOBListener(host="203.0.113.7", port=0, bind="0.0.0.0") as listener:
+            self.assertEqual(listener.bind, "0.0.0.0")
+            url = listener.url(listener.token())
+            self.assertTrue(url.startswith("http://203.0.113.7:"))
+            self.assertGreater(listener.port, 0)
+
+    def test_is_external_classifier(self):
+        self.assertTrue(wizard._is_external("1.2.3.4"))
+        self.assertTrue(wizard._is_external("example.com"))
+        self.assertFalse(wizard._is_external("127.0.0.1"))
+        self.assertFalse(wizard._is_external("10.0.0.5"))
+        self.assertFalse(wizard._is_external("localhost"))
+
+    def test_spec_maps_oob_to_args(self):
+        args = build_parser().parse_args([])
+        spec_mod.apply({"mode": "web-pentest", "target": "https://x.example",
+                        "oob": {"host": "auto", "port": 8611}}, args)
+        self.assertEqual(args.oob_host, "auto")
+        self.assertEqual(args.oob_port, 8611)
 
 
 class TestWizard(unittest.TestCase):
