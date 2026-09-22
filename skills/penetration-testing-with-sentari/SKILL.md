@@ -1,6 +1,6 @@
 ---
 name: penetration-testing-with-sentari
-description: Pentest a web app, API, URL, domain, or host with Sentari, an evidence-grounded, authorized security assessment tool that reports only findings backed by real tool output (no fabricated or guessed results). Runs a 6-phase methodology (OSINT, recon, scanning, vuln assessment, verification, reporting) with optional AI triage, and confirms high-impact issues by actual effect (XSS/SSTI execution, SSRF/XXE out-of-band callback). Use when the user asks to pentest, security-scan, security-audit, or find vulnerabilities in an app, API, website, or host they are authorized to test.
+description: Pentest a web app, API, URL, domain, or host with Sentari, an evidence-grounded, authorized security assessment tool that reports only findings backed by real tool output (no fabricated or guessed results). Runs a phased methodology (OSINT, recon, scanning, SAST, vuln, API, access-control, injection, browser DAST, verification) with optional AI triage and a multi-target graph, and confirms high-impact issues by actual effect (XSS/SSTI execution, SSRF/XXE/command-injection out-of-band callback). Use when the user asks to pentest, security-scan, security-audit, or find vulnerabilities in an app, API, website, or host they are authorized to test.
 license: Proprietary
 metadata:
   author: Ahmad
@@ -9,79 +9,113 @@ metadata:
 
 # Run a Sentari assessment
 
-Sentari is an authorized-use security assessment tool. Its core rule: a finding cannot exist without evidence (the real output of a real command that ran). It never invents results, and every result marked "confirmed" required an actual observed effect.
+Sentari is an authorized-use security assessment tool. Its one hard rule: a finding cannot exist without evidence (the real output of a real command that ran). It never invents results, and anything labelled "confirmed" required an actual observed effect (payload execution, or an out-of-band callback). This skill is the end-to-end workflow; the other Sentari skills go deeper per area and are linked at the end.
 
-## Before you run anything
+## 1. Confirm authorization and scope
 
-Sentari refuses to run unless the operator attests authorization and gives a scope. Always pass both:
+Before running anything, establish:
 
-- `--scope <host-or-CIDR>` (repeatable): the authorized target(s).
-- `--authorized`: attests written permission to test.
+- **The target is the user's**, or they have written permission to test it. Never scan third-party infrastructure on a hunch.
+- **Which environment.** Prefer staging over production. Gated/active features send real payloads and can change data; keep them off production.
+- **Credentials**, if the app has a login. Most real issues live behind auth; without a test account Sentari only sees the public surface. Two accounts are needed to prove access-control/IDOR bugs (see the web-app and access-control skills).
+- **Out-of-scope paths** (payments, mass-email, destructive admin actions).
 
-Never run it against a target the user does not own or have written permission to test. Do not use offensive/gated features against production.
+Ask for anything missing rather than guessing. Sentari refuses to run unless you pass `--scope <host-or-CIDR>` (repeatable) and `--authorized`, and it records every run in an append-only audit log.
 
-## Install
+## 2. Prerequisites
 
-Python 3.9+. Core is standard-library only:
+Python 3.9+. The core is standard-library only:
 
 ```bash
-pip install .
-# optional extras as needed:
-pip install ".[ai,browser,api,cloud,openvas,privesc,pdf,distributed,postgres]"
+pip install .                      # core
+sentari --version                  # verify
+sentari --list-phases              # see the phases available
 ```
 
-## A first, safe assessment (read-only by default)
+Optional extras add coverage and degrade gracefully when absent:
 
 ```bash
+pip install ".[ai,browser,api,cloud,openvas,privesc,pdf,distributed,postgres]"
+playwright install chromium        # only if using --browser
+```
+
+External scanners (`nmap`, `nuclei`, `sqlmap`, `gobuster`/`ffuf`, `subfinder`, `semgrep`, `prowler`, `mitmproxy`, Docker) are used when present and reported as missing otherwise. Sentari never fabricates a result to fill a gap.
+
+## 3. Run the assessment
+
+Safe mode is on by default (intrusive and gated checks stay off).
+
+```bash
+# Read-only first pass with reports
 sentari https://staging.example.com --scope staging.example.com --authorized \
   --html report.html --json report.json
+
+# Only some phases
+sentari https://staging.example.com --scope staging.example.com --authorized --phases recon,scanning,vuln
+
+# With the API surface and client-side DAST
+sentari https://staging.example.com --scope staging.example.com --authorized \
+  --openapi ./openapi.json --api-tests --browser
+
+# Access control needs two identities (the only way to prove IDOR)
+sentari https://staging.example.com --scope staging.example.com --authorized \
+  --access-control --identity alice:Cookie:session=aaa --identity bob:Cookie:session=bbb
+
+# AI triage over the real findings
+sentari https://staging.example.com --scope staging.example.com --authorized --ai --ai-provider openai
+
+# Multi-target, red-team style: shared blackboard, parallel, correlated (+ AI chaining)
+sentari t1.example.com --graph --graph-target t2.example.com --scope example.com --authorized --ai
 ```
 
-Safe mode is on by default: intrusive and gated checks stay off until explicitly enabled.
+Some phases (nuclei, injection with out-of-band waits, browser) take minutes. For a large or `--graph` run, launch it in the background and poll rather than blocking.
 
-## Phases
+Localhost: point at the actual bound address (for example `http://127.0.0.1:3000`) and pass that port explicitly; to test only a throwaway port, use `--phases scanning,vuln http://host:PORT` without recon so nothing else on the box is probed.
 
-Run all (default) or select with `--phases a,b,c`:
+## 4. Phases
 
-| Phase | What it does |
-|---|---|
-| osint | passive subdomain enumeration + Shodan (needs the tools/keys) |
-| recon | DNS, ports/services, web fingerprint; ingests an `--openapi` spec |
-| scanning | security headers, TLS, content discovery |
-| sast | semgrep over a source tree (`--sast PATH`) |
-| cloud-audit | Prowler misconfiguration audit (`--cloud-audit aws|azure|gcp`) |
-| vuln | nuclei templates, gated sqlmap, optional OpenVAS/Nexpose |
-| api | JWT audit, rate-limit, auth exposure (`--api-tests`) |
-| access-control | IDOR / missing-auth by comparing identities (`--access-control`) |
-| injection | SSRF/XXE/cmdi (out-of-band confirmed), SSTI, NoSQLi, deserialization (`--injection`) |
-| browser | client-side DAST: reflected/DOM/stored XSS, proto pollution, clickjacking, CSRF (`--browser`) |
-| verification | read-only confirmation of findings (only with `--no-safe-mode`) |
+| Phase | Flag to enable (if not default) | What it does |
+|---|---|---|
+| osint | default | passive subdomain enumeration + Shodan (needs tools/keys) |
+| recon | default | DNS, ports/services, web fingerprint; ingests `--openapi` |
+| scanning | default | security headers, TLS, content discovery |
+| sast | `--sast PATH` | semgrep over a source tree |
+| cloud-audit | `--cloud-audit aws\|azure\|gcp` | Prowler misconfiguration audit |
+| vuln | default | nuclei, gated sqlmap, optional OpenVAS/Nexpose |
+| api | `--api-tests` | JWT audit, rate-limit, auth exposure |
+| access-control | `--access-control` | IDOR / missing-auth by comparing identities |
+| injection | `--injection` | SSRF/XXE/cmdi (OOB-confirmed), SSTI, NoSQLi, deserialization |
+| workflow | `--workflow FILE` | operator-defined business-logic replay |
+| browser | `--browser` | reflected/DOM/stored XSS, proto pollution, clickjacking, CSRF |
+| verification | `--no-safe-mode` | read-only confirmation of findings, secrets redacted |
 
-## Add AI triage (optional, grounded)
+## 5. Read the results
 
-```bash
-sentari <target> --scope <target> --authorized --ai --ai-provider openai
+Read the console report first, then `report.json` for detail. Structure:
+
+```
+{"results": [{"phase": "...", "findings": [{
+    "title", "severity", "description", "location", "evidence_ids": ["..."],
+    "metadata": {"cvss", "compliance", "known_exploited", "risk", "business_impact", "candidate"}}],
+  "evidence": [{"id", "command", "returncode", "stdout", "stderr", ...}]}]}
 ```
 
-The AI prioritizes and chains the real findings; a grounding guard drops any AI reference to a finding that does not exist. `--autopilot` lets the AI choose phases; `--agent` lets it call tools directly. Findings stay evidence-anchored.
+- **Confirmed vs candidate.** A finding whose title says "confirmed" (XSS, SSRF, XXE, command injection, SSTI, PoC) required a real observed effect. A finding with `metadata.candidate` set is a lead for manual review, not an assertion. Report the difference honestly.
+- **Verify before reporting.** Every finding cites `evidence_ids`; cross-check them against the `evidence` entries (the exact command and its output). For a confirmed exploit, re-run the evidence to see it for yourself.
+- **Prioritize** with CVSS, the CISA-KEV `known_exploited` tag, and the `business_impact`/`risk` fields (see the risk-prioritization skill).
 
-## Multi-target / red-team style
+Reports: `--html`, `--json`, `--xml`, `--pdf`. Persist and browse runs with `--db <dsn>` and `--serve` (see the reporting skill).
 
-```bash
-sentari t1.example.com --graph --graph-target t2.example.com --graph-target t3.example.com \
-  --scope example.com --authorized --ai
-```
+## 6. Coverage honesty
 
-`--graph` runs specialized nodes on a shared blackboard, several targets in parallel, then correlates findings across assets and (with `--ai`) chains them.
+A clean run means nothing was proven **in what was tested**, not that the app is secure. State what was and was not exercised: gated/active phases run only when enabled and outside safe mode, tool-backed phases skip when the tool is missing, and access-control/business-logic need credentials to be meaningful. Do not imply full coverage from a default run.
 
-## Reporting and retest
+## 7. Fix, re-test, and automate
 
-`--html`, `--json`, `--xml`, `--pdf` write reports. `--db <dsn>` persists runs; `--serve` opens a read-only dashboard. `--retest <baseline.json>` or `--retest-latest` diffs a fresh run (fixed / still present / new).
-
-## Gated offensive features (authorized, non-production only)
-
-These run real attack tooling and need `--no-safe-mode`, their own flag, and an exact confirmation string. See the **web-app-penetration-testing** skill for details. Never point them at production.
+- Remediate and open a draft PR: **fix-security-vulnerabilities-with-sentari**.
+- Confirm the fix landed by diffing a fresh run: **retest-and-monitor** (`--retest`, `--retest-latest`).
+- Gate every change in CI: **ci-security-scanning-with-sentari**.
 
 ## What Sentari will not do
 
-It will not fabricate findings, will not perform credential stuffing, and will not run fully autonomous exploitation of production. Respect these; do not try to work around them.
+No fabricated findings, no credential stuffing, and no fully-autonomous exploitation of production. These are structural; do not try to work around them.
