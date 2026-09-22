@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -81,6 +81,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Static analysis (SAST) over a source tree with semgrep.")
     p.add_argument("--sast-config", default="auto",
                    help="semgrep config/ruleset for --sast (default: auto).")
+    p.add_argument("--access-control", action="store_true",
+                   help="Broken-access-control / IDOR testing by comparing identities.")
+    p.add_argument("--identity", action="append", default=[], metavar="NAME:HEADER:VALUE",
+                   help="An identity for --access-control, e.g. alice:Cookie:session=abc (repeatable).")
+    p.add_argument("--ac-url", action="append", default=[], metavar="URL",
+                   help="Protected URL to test for access control (repeatable).")
     p.add_argument("--api-tests", action="store_true",
                    help="Read-only API-security checks (JWT audit, rate-limit, auth exposure).")
     p.add_argument("--jwt", metavar="TOKEN", help="Audit a specific JWT offline.")
@@ -297,6 +303,19 @@ def main(argv: list[str] | None = None) -> int:
         options["cloud_audit"] = args.cloud_audit
     if args.proxy_ingest:
         options["proxy_ingest"] = args.proxy_ingest
+    if args.access_control:
+        options["access_control"] = True
+        idents = []
+        for spec in args.identity:
+            parts = spec.split(":", 2)
+            if len(parts) == 3:
+                idents.append({"name": parts[0], "headers": {parts[1]: parts[2]}})
+            else:
+                print(f"warning: ignoring --identity {spec!r} (want NAME:HEADER:VALUE)",
+                      file=sys.stderr)
+        options["identities"] = idents
+        if args.ac_url:
+            options["ac_urls"] = args.ac_url
     if args.api_tests:
         options["api_tests"] = True
     if args.jwt:

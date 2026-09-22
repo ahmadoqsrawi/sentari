@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.10.0] - 2026-09-22
+
+### Added
+- **Broken access control / IDOR testing** (`accesscontrol.py`, `phases/accesscontrol.py`, `--access-control`, `--identity`, `--ac-url`): requests the protected URLs as several supplied identities and anonymously, then reports resources served without authentication or served identically to different users while anonymous access is refused (a horizontal-access/IDOR candidate). It only reports when responses actually match and the resource is non-trivial, and it sends ordinary GETs, so it changes nothing.
+
 ## [0.9.0] - 2026-09-22
 
 ### Added

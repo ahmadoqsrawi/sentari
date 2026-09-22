@@ -12,6 +12,7 @@ from .sast import SASTPhase
 from .cloudaudit import CloudAuditPhase
 from .vuln import VulnPhase
 from .apitest import APITestPhase
+from .accesscontrol import AccessControlPhase
 from .proxy_ingest import ProxyIngestPhase
 from .browser import BrowserPhase
 from .verify import VerifyPhase
@@ -24,6 +25,7 @@ PHASES: list[type[Phase]] = [
     CloudAuditPhase,
     VulnPhase,
     APITestPhase,
+    AccessControlPhase,
     ProxyIngestPhase,
     BrowserPhase,
     VerifyPhase,
@@ -31,4 +33,5 @@ PHASES: list[type[Phase]] = [
 
 __all__ = ["Phase", "PhaseContext", "PHASES",
            "OSINTPhase", "ReconPhase", "ScanPhase", "SASTPhase", "CloudAuditPhase",
-           "VulnPhase", "APITestPhase", "ProxyIngestPhase", "BrowserPhase", "VerifyPhase"]
+           "VulnPhase", "APITestPhase", "AccessControlPhase", "ProxyIngestPhase",
+           "BrowserPhase", "VerifyPhase"]
