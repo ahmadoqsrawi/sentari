@@ -37,8 +37,10 @@ class RetestResult:
 def load_baseline(path: str) -> list[dict]:
     """Read findings from a prior `--json` report (a list of phase dicts)."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
+    # accept both shapes: a bare list of phase dicts, or {"results": [...]}
+    phases = data["results"] if isinstance(data, dict) else data
     findings: list[dict] = []
-    for phase in data:
+    for phase in phases:
         findings.extend(phase.get("findings", []))
     return findings
 

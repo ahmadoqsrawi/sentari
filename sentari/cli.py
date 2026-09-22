@@ -37,9 +37,41 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
     p.add_argument("--retest", metavar="BASELINE_JSON",
                    help="Compare this run against a prior --json baseline (fixed/still/new).")
+    p.add_argument("--ai", action="store_true",
+                   help="Grounded AI triage of the real findings (prioritize/chain/remediate).")
+    p.add_argument("--ai-provider", help="AI provider: openai, anthropic, google, openrouter, ollama.")
+    p.add_argument("--ai-model", help="AI model id (provider-specific).")
+    p.add_argument("--ai-base-url", help="Custom base URL (OpenAI-compatible / Ollama).")
     p.add_argument("--audit-log", default="sentari-audit.log", help="Append-only audit log path.")
     p.add_argument("--version", action="version", version=f"sentari {__version__}")
     return p
+
+
+def _print_analysis(a) -> None:
+    print("\n" + "-" * 70)
+    print(f"AI TRIAGE (grounded): provider={a.provider} model={a.model}")
+    print("-" * 70)
+    if a.error:
+        print(f"  {a.error}")
+        return
+    if a.summary:
+        print(a.summary)
+    if a.prioritized:
+        print("\n  Priority order (finding ids): " + ", ".join(a.prioritized))
+    for ch in a.chains:
+        print(f"\n  Attack chain: {ch['name']}")
+        print(f"    findings: {', '.join(ch['finding_ids'])}")
+        print(f"    {ch['rationale']}")
+    if a.dropped_references:
+        print(f"\n  [grounding guard] dropped {a.dropped_references} AI reference(s) "
+              f"to findings that do not exist.")
+
+
+def _analysis_to_dict(a) -> dict:
+    return {"provider": a.provider, "model": a.model, "summary": a.summary,
+            "prioritized": a.prioritized, "chains": a.chains,
+            "remediation": a.remediation, "dropped_references": a.dropped_references,
+            "error": a.error}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -88,6 +120,15 @@ def main(argv: list[str] | None = None) -> int:
 
     print(console.render(results))
 
+    analysis = None
+    if args.ai:
+        from .ai import GroundedAnalyst, get_provider
+        provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
+        analysis = GroundedAnalyst(provider).analyze(results)
+        _print_analysis(analysis)
+        audit.record("ai.triage", target=args.target, provider=analysis.provider,
+                     error=analysis.error, dropped_refs=analysis.dropped_references)
+
     if args.retest:
         from . import retest as retest_mod
         try:
@@ -102,9 +143,11 @@ def main(argv: list[str] | None = None) -> int:
                      still=len(rr.still_present), new=len(rr.new))
 
     if args.json:
+        payload = {"results": [r.to_dict() for r in results]}
+        if analysis is not None:
+            payload["ai_analysis"] = _analysis_to_dict(analysis)
         Path(args.json).write_text(
-            json.dumps([r.to_dict() for r in results], indent=2, ensure_ascii=False),
-            encoding="utf-8",
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8",
         )
         print(f"\nFull results written to {args.json}")
 
