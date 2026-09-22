@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Install (core: standard library only)
+      - name: "Install (core: standard library only)"
         run: pip install .
 
       - name: Byte-compile
@@ -32,10 +32,10 @@ jobs:
       - name: Unit tests
         run: python -m unittest discover -s tests -v
 
-      - name: CLI smoke: list phases
+      - name: "CLI smoke: list phases"
         run: python -m sentari --list-phases
 
-      - name: CLI smoke: refuses unauthorized target
+      - name: "CLI smoke: refuses unauthorized target"
         run: |
           if python -m sentari example.com; then
             echo "ERROR: ran without scope/authorization"; exit 1
