@@ -105,10 +105,14 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - **Cloud asset discovery**: `--cloud aws` (also azure/gcp) lists internet-facing assets in your own account so you can bring them into scope. Enumerate only, never scanned automatically
 - **Scheduled retests**: a Celery beat schedule (`SENTARI_SCHEDULE_*`) reruns a target on a cron and reports the delta vs the previous run
 - **CVSS scoring**: CVSS v3.1 base scores on nuclei findings that carry a vector
+- **Threat-intel correlation**: matches finding CVEs against the CISA Known Exploited Vulnerabilities catalog and tags the ones known to be exploited in the wild. Reports what CISA lists; when the catalog is unreachable it says so rather than guessing
+- **OpenVAS / Greenbone**: `--openvas` pulls results from a configured GVM instance into the vuln phase as evidence-backed findings
 
 ### 🔎 Prioritization aids (never vulnerability claims)
 - **Anomaly flagging**: marks findings whose evidence is unusual for the target as "worth manual review"
 - **Heuristic candidates**: flags error/stack-trace patterns in evidence as candidates for manual review. This is the honest form of "novel issue" flagging; it never asserts a vulnerability or a zero-day, and creates no findings
+- **Business impact and risk matrix**: `--asset-value` weights each finding's CVSS or severity by how critical the asset is, and the report places findings on a likelihood by impact grid
+- **Cross-asset correlation and trends**: `--correlate` surfaces a finding seen across more than one target; `--trends` shows severity counts per stored run over time
 
 ## 🏗️ Architecture
 
@@ -140,7 +144,9 @@ Each package has one job:
 | `runner` | Runs external tools and built-in probes, captures each as evidence |
 | `authorization` | Scope allowlist, attestation gate, audit log |
 | `engine` | The one `run_assessment` path shared by the CLI and workers |
-| `phases/` | `recon`, `scanning`, `vuln`, `verify` |
+| `phases/` | `osint`, `recon`, `scanning`, `vuln`, `verify`, and gated `exploit` / `postexploit` |
+| `threatintel` / `classify` | CISA KEV correlation; rule-based service classification |
+| `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
 | `parsers/` | Tool-output parsers (for example, `nmap` XML) |
 | `compliance` | OWASP / CWE / NIST tagging |
 | `ai/` | Providers and the grounded analyst |
@@ -187,7 +193,12 @@ pip install ".[postgres]"     # Postgres run store
 | 5 | Reporting | evidence-linked HTML, JSON, XML, PDF |
 | 6 | Retest | diff a fresh scan against a prior run |
 
-A gated **exploitation** phase (Metasploit modules + bounded exfil-simulation) exists but is off by default. It runs only with `--no-safe-mode --exploit` and an exact confirmation string, and it is for authorized, non-production targets only.
+Two gated offensive phases exist but are off by default and never in the phase list:
+
+- **Exploitation** (`--exploit`): operator-named Metasploit modules plus a bounded, redacted exfil-simulation.
+- **Post-exploitation** (`--postexploit`): CrackMapExec SMB enumeration and bloodhound-python AD collection with credentials you supply.
+
+Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string, and is for authorized, non-production targets only.
 
 ```bash
 sentari --list-phases
@@ -203,7 +214,11 @@ sentari --list-phases
 | `--no-safe-mode` | Allow the gated, read-only verification checks. |
 | `--html` / `--json` / `--xml` / `--pdf` FILE | Write the report in that format (PDF needs reportlab). |
 | `--cloud {aws,azure,gcp}` | List internet-facing assets in your cloud account and exit. |
+| `--asset-value {low,medium,high,critical}` | Asset criticality for business-impact scoring. |
+| `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
+| `--openvas` | Pull results from a configured Greenbone/OpenVAS instance (`GVM_*` env). |
 | `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized non-production only. |
+| `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`) | Gated post-exploitation, authorized non-production only. |
 | `--save-run DIR` | Save the run for the dashboard. |
 | `--db DSN` | Persist runs to SQLite (a path) or Postgres (a `postgres://` URL). |
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |

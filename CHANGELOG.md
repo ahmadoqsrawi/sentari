@@ -4,6 +4,19 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.5.0] - 2026-09-22
+
+### Added
+- **Threat-intel correlation** (`threatintel.py`, on by default, `--no-threatintel`): correlates finding CVEs against the CISA Known Exploited Vulnerabilities catalog, fetched over HTTPS and cached daily. A match tags the finding as known-exploited; when the catalog cannot be fetched, correlation is skipped with a note. Reports what CISA lists; predicts nothing.
+- **Service classification** (`classify.py`): deterministic port/service to category lookup (web, database, mail, remote-access, and so on) attached to open-port findings. A lookup, not machine learning.
+- **Business-impact scoring and risk matrix** (`prioritize.py`, `--asset-value low|medium|high|critical`): weights a finding's CVSS or severity by asset criticality and places each finding on a likelihood by impact grid, shown in the console report. Rates the real findings; adds none.
+- **Cross-asset correlation** (`correlation.py`, `--correlate`): reports a finding seen across more than one target in `--db` or `--runs-dir`, so a systemic issue stands out.
+- **Trend analysis** (`trends.py`, `--trends`): severity counts per stored run, oldest to newest, from `--db` or `--runs-dir`.
+- **OpenVAS / Greenbone connector** (`openvas.py`, `--openvas`): pulls results from a configured GVM instance (python-gvm + `GVM_*` env) into the vuln phase as evidence-backed findings; graceful when unconfigured.
+- **Azure and GCP asset discovery** (`cloud_assets.py`): real implementations for `--cloud azure` (azure SDK, `AZURE_SUBSCRIPTION_ID`) and `--cloud gcp` (google-cloud-compute, `GOOGLE_CLOUD_PROJECT`), alongside the existing AWS path; enumerate only.
+- **masscan** port discovery in recon when installed and safe mode is off.
+- **Gated post-exploitation** (`phases/postexploit.py`, `--postexploit`): CrackMapExec SMB enumeration and bloodhound-python AD collection with operator-supplied credentials. Off by default; requires `--no-safe-mode`, `--postexploit`, credentials, and an exact confirmation string; scope enforced; findings evidence-backed. Authorized, non-production targets only.
+
 ## [0.4.0] - 2026-09-22
 
 ### Added
