@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.17.0] - 2026-09-22
+
+### Added
+- Agent-driven --autonomous: the LLM agent now conducts the whole assessment via a new run_phase tool (recon, scanning, vuln, api, access-control, injection, browser, verification), findings stay evidence-anchored. Previously --autonomous ran the fixed pipeline plus AI triage.
+
 ## [0.16.0] - 2026-09-22
 
 ### Changed

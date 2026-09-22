@@ -42,6 +42,13 @@ TOOL_SPECS = [
               "title": "string", "description": "string", "location": "string (optional)",
               "recommendation": "string (optional)"},
      "desc": "Record a finding. REQUIRES an evidence_id returned by a previous tool."},
+    {"name": "run_phase",
+     "args": {"phase": "one of: osint, recon, scanning, sast, vuln, api, access-control, "
+                       "injection, browser, verification",
+              "options": "object (optional): extra options like {\"sqlmap_url\": \"...\"}"},
+     "desc": "Run a full assessment phase against the target with its real engine. Findings "
+             "come back evidence-backed. Run recon first so later phases see open ports. "
+             "injection and browser send active payloads and run only when safe mode is off."},
     {"name": "finish", "args": {"summary": "string"}, "desc": "End the assessment."},
 ]
 
@@ -49,11 +56,13 @@ _SEV = {s.value: s for s in Severity}
 
 
 class ToolDispatcher:
-    def __init__(self, runner, target: str, safe_mode: bool) -> None:
+    def __init__(self, runner, target: str, safe_mode: bool, options: dict | None = None) -> None:
         self.r = runner
         self.target = target
         self.host = _hostname(target)
         self.safe_mode = safe_mode
+        self.options = dict(options or {})
+        self.shared: dict = {}          # persists across run_phase calls (open_ports, ips, ...)
         self.findings: list[Finding] = []
         self.open_ports: list[int] = []
 
@@ -215,3 +224,39 @@ class ToolDispatcher:
             metadata={"authored_by": "agent"})
         self.findings.append(f)
         return f"recorded finding {f.id}: [{sev.value}] {title}"
+
+    # auto-enable each phase's own gate so the model just names the phase
+    _PHASE_GATE = {"injection": "injection", "browser": "browser", "api": "api_tests",
+                   "access-control": "access_control"}
+
+    def _run_phase(self, args: dict) -> str:
+        """Run a real assessment phase; its findings come back evidence-backed."""
+        from ..phases import PHASES, PhaseContext
+        name = str(args.get("phase", "")).strip()
+        by_name = {c.name: c for c in PHASES}
+        cls = by_name.get(name)
+        if cls is None:
+            return f"error: unknown phase {name!r}. Valid: {', '.join(sorted(by_name))}"
+        opts = {**self.options, **(args.get("options") or {})}
+        gate = self._PHASE_GATE.get(name)
+        if gate:
+            opts[gate] = True
+        ctx = PhaseContext(target=self.target, runner=self.r, safe_mode=self.safe_mode,
+                           options=opts, shared=self.shared)
+        before = len(self.findings)
+        res = cls().run(ctx)
+        self.findings.extend(res.findings)
+        if name == "recon":  # keep open ports for the granular tools too
+            self.open_ports = sorted(self.shared.get("open_ports", self.open_ports))
+        new = res.findings
+        sev_counts = {}
+        for f in new:
+            sev_counts[f.severity.value] = sev_counts.get(f.severity.value, 0) + 1
+        summary = ", ".join(f"{v} {k}" for k, v in sev_counts.items()) or "no findings"
+        notes = "; ".join(res.notes[-3:]) if res.notes else ""
+        out = f"phase {name}: {len(new)} finding(s) ({summary})."
+        if notes:
+            out += f" notes: {notes}"
+        if res.error:
+            out += f" ERROR: {res.error}"
+        return out

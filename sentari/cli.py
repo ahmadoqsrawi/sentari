@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.16.0"
+__version__ = "0.17.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -509,7 +509,9 @@ def main(argv: list[str] | None = None) -> int:
         options["api_tests"] = True
         options.setdefault("exploit", {"modules": args.exploit_module, "exfil_sim": args.exfil_sim,
                                        "poc_scripts": args.poc, "poc_image": args.poc_image or "python:3-slim"})
-        args.ai = True
+        args.agent = True
+        args.goal = args.goal or "Conduct a complete authorized assessment using run_phase in order: recon, scanning, vuln, api, access-control, injection, browser, verification; record any extra findings with evidence, then finish with a summary."
+        args.agent_steps = max(args.agent_steps, 30)
 
     if args.ai_osint:
         if args.enqueue:

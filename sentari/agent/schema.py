@@ -35,5 +35,13 @@ OPENAI_TOOLS = [
            "title": {"type": "string"}, "description": {"type": "string"},
            "location": {"type": "string"}, "recommendation": {"type": "string"}},
           ["evidence_id", "severity", "title"]),
+    _tool("run_phase", "Run a full assessment phase against the target with its real engine "
+          "(findings come back evidence-backed). Run recon first so later phases see open "
+          "ports. injection and browser send active payloads and run only when safe mode is off.",
+          {"phase": {"type": "string",
+                     "enum": ["osint", "recon", "scanning", "sast", "vuln", "api",
+                              "access-control", "injection", "browser", "verification"]},
+           "options": {"type": "object", "description": "optional extra options"}},
+          ["phase"]),
     _tool("finish", "End the assessment.", {"summary": {"type": "string"}}, []),
 ]
