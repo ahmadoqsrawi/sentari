@@ -1,0 +1,49 @@
+# Local distributed stack: Redis broker + Celery worker + read-only dashboard.
+# Bring it up:  docker compose up --build
+# Enqueue a scan (from the host, into the worker):
+#   docker compose run --rm worker-cli <target> --scope <target> --authorized --enqueue --db /data/sentari.db
+# Then open http://localhost:8600
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build: .
+    entrypoint: ["celery", "-A", "sentari.tasks", "worker", "--loglevel=info"]
+    environment:
+      SENTARI_BROKER_URL: redis://redis:6379/0
+    volumes:
+      - data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  dashboard:
+    build: .
+    command: ["--serve", "--db", "/data/sentari.db", "--host", "0.0.0.0", "--port", "8600"]
+    ports:
+      - "8600:8600"
+    volumes:
+      - data:/data
+    depends_on:
+      - redis
+
+  # helper for enqueuing scans (same image, default sentari entrypoint)
+  worker-cli:
+    build: .
+    profiles: ["cli"]
+    environment:
+      SENTARI_BROKER_URL: redis://redis:6379/0
+    volumes:
+      - data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  data:

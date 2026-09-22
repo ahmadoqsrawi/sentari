@@ -45,6 +45,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--serve", action="store_true",
                    help="Start the read-only web dashboard instead of scanning.")
     p.add_argument("--port", type=int, default=8600, help="Dashboard port (default 8600).")
+    p.add_argument("--host", default="127.0.0.1",
+                   help="Dashboard bind address (default 127.0.0.1; use 0.0.0.0 in a container).")
     p.add_argument("--runs-dir", default="runs", help="Directory of saved runs (dashboard).")
     p.add_argument("--retest", metavar="BASELINE_JSON",
                    help="Compare this run against a prior --json baseline (fixed/still/new).")
@@ -92,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.serve:
         from .web import serve
-        serve(runs_dir=args.runs_dir, port=args.port, db=args.db)
+        serve(runs_dir=args.runs_dir, port=args.port, host=args.host, db=args.db)
         return 0
 
     if args.list_phases:

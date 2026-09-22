@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentari-worker
+  namespace: sentari
+spec:
+  replicas: 2                      # scale workers horizontally here
+  selector:
+    matchLabels: { app: sentari-worker }
+  template:
+    metadata:
+      labels: { app: sentari-worker }
+    spec:
+      containers:
+        - name: worker
+          image: sentari:latest    # build & push your own: docker build -t <registry>/sentari:latest .
+          imagePullPolicy: IfNotPresent
+          command: ["celery", "-A", "sentari.tasks", "worker", "--loglevel=info"]
+          envFrom:
+            - secretRef: { name: sentari-config }
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "1", memory: "512Mi" }
