@@ -1,43 +1,146 @@
-# Sentari
+<div align="center">
 
-Evidence-grounded, authorized security assessment from the command line.
+# 🛡️ Sentari
 
-[![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg)](pyproject.toml)
-[![License](https://img.shields.io/badge/license-proprietary-lightgrey.svg)](LICENSE)
-[![CI](https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg)](.github/workflows/ci.yml)
+### Evidence-grounded, authorized security assessment
 
-Sentari runs real security tools and reports only what they actually found. A finding exists only when a real command produced evidence for it. There are no hardcoded results and nothing invented by a language model. Every finding cites the command that produced it, its output, exit code, and timing.
+<p>
+  <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
+  <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
+  <img src="https://img.shields.io/badge/tests-22%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/license-proprietary-lightgrey.svg" alt="License">
+  <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
-The guarantee is enforced in the code: a `Finding` cannot be created without evidence, and the AI triage step discards any reference to a finding that does not exist.
+</div>
 
-## Why use it
+Sentari runs real security tools and reports only what they actually found. Every finding points back to the exact command that produced it, its output, exit code, and timing. There are no hardcoded results, and nothing invented by a language model.
 
-- You get an assessment you can audit. Each result points back to the exact command and output behind it.
-- The core needs only the Python standard library, so it runs anywhere Python does. External scanners and services are optional add-ons.
-- It refuses to run outside an authorized scope, and it logs every run.
+> **The rule that defines Sentari:** a finding exists only when a real command produced evidence for it. This is enforced in code, a `Finding` cannot be created without evidence, and it holds through the AI layer, which discards any reference to a finding that does not exist.
 
-## Requirements
+---
 
-- Python 3.9 or newer (the core has no other dependencies).
-- Optional scanners for deeper coverage: `nmap`, `nuclei`, `nikto`, `gobuster`/`ffuf`, `sqlmap`. Sentari uses each when present and reports it as missing otherwise.
-- Optional Python extras: `ai` (OpenAI/Anthropic), `distributed` (Celery + Redis), `postgres`.
+## 📑 Contents
 
-## Installation
+- [Why Sentari](#-why-sentari)
+- [Features](#-features)
+- [Architecture](#️-architecture)
+- [Quick start](#-quick-start)
+- [Phases](#-phases)
+- [Command-line options](#️-command-line-options)
+- [Examples](#-examples)
+- [Configuration](#️-configuration)
+- [Web dashboard and distributed runs](#-web-dashboard-and-distributed-runs)
+- [Project layout](#-project-layout)
+- [Testing](#-testing)
+- [Documentation](#-documentation)
+- [Authorization and safety](#-authorization-and-safety)
+- [License](#-license)
 
-Sentari is not on PyPI yet. Install it from source:
+---
+
+## 🎯 Why Sentari
+
+- **Auditable results.** Each finding carries the command, output, exit code, and timestamp behind it. You can check any result against its evidence.
+- **No fabrication.** The data model rejects a finding with no evidence, and the AI triage step drops any finding id it did not receive. The tool cannot invent a vulnerability.
+- **Runs anywhere.** The core uses only the Python standard library, so it works wherever Python does. External scanners and services are optional.
+- **Safe by default.** It refuses to run outside a declared scope, requires an authorization flag, keeps intrusive checks behind a gate, and logs every run.
+
+## ✨ Features
+
+### 🔍 Reconnaissance
+- DNS resolution and IP mapping
+- Port and service discovery: a built-in TCP connect scan, enriched by `nmap -sV` when present
+- Web fingerprint of discovered HTTP services
+
+### 📡 Scanning and enumeration
+- HTTP security-header analysis (CSP, HSTS, X-Frame-Options, and more)
+- TLS inspection, including real handshakes against TLS 1.0/1.1 to detect legacy protocols
+- Technology and version disclosure
+- Content discovery with `gobuster`/`ffuf`, or a built-in probe for common sensitive paths
+
+### 🧪 Vulnerability assessment
+- `nuclei` template scanning, mapped into findings with their evidence
+- `sqlmap`, behind a gate so it only runs when you opt in
+
+### ✅ Verification (safe exploitation)
+- Read-only confirmation of findings, such as fetching an exposed `.git/config` to prove it is real
+- Runs only with `--no-safe-mode`; retrieved secrets are redacted before they reach any report
+
+### 🤖 Grounded AI triage
+- Multi-provider: OpenAI, Anthropic, Google, OpenRouter, and local models through Ollama
+- Prioritizes findings, groups them into attack chains, and suggests fixes
+- Works only from the real findings, and drops any reference the model invents
+
+### 📋 Compliance mapping
+- Tags findings with OWASP Top 10 (2021), CWE, and NIST 800-53 references
+- Shown in the console, the HTML report, and the JSON output
+
+### 📊 Reporting and retest
+- Self-contained HTML report with each finding linked to its evidence, plus JSON
+- Retest diffs a fresh scan against a prior run and marks each item fixed, still present, or new
+
+### 🗄️ Persistence and interfaces
+- Run store in SQLite by default, or Postgres
+- Read-only web dashboard and REST API, bound to localhost by default
+- Optional Celery workers for distributed runs, with Docker, Compose, and Kubernetes manifests
+
+## 🏗️ Architecture
+
+Phases 1 to 4 run tools through one shared engine; reporting and retest read the results.
+
+```mermaid
+flowchart LR
+    A[CLI] --> AUTH{authorized?<br/>in scope?}
+    AUTH -- no --> STOP[refuse + audit]
+    AUTH -- yes --> ENG[engine.run_assessment]
+    ENG --> P1[1. Recon]
+    P1 --> P2[2. Scanning]
+    P2 --> P3[3. Vuln assessment]
+    P3 --> P4[4. Verification]
+    P4 --> C[Compliance tags]
+    C --> AI[AI triage]
+    AI --> R[(Reports: HTML / JSON)]
+    AI --> DB[(SQLite / Postgres)]
+    DB --> WEB[Web dashboard]
+    ENG -. every tool call .-> EV[[Evidence store]]
+    EV -. backs every .-> F[Finding]
+```
+
+Each package has one job:
+
+| Package | Responsibility |
+|---------|----------------|
+| `models` | `Evidence`, `Finding`, `PhaseResult`; a finding cannot exist without evidence |
+| `runner` | Runs external tools and built-in probes, captures each as evidence |
+| `authorization` | Scope allowlist, attestation gate, audit log |
+| `engine` | The one `run_assessment` path shared by the CLI and workers |
+| `phases/` | `recon`, `scanning`, `vuln`, `verify` |
+| `parsers/` | Tool-output parsers (for example, `nmap` XML) |
+| `compliance` | OWASP / CWE / NIST tagging |
+| `ai/` | Providers and the grounded analyst |
+| `reporting/` | Console and HTML output |
+| `retest` | Diff against a baseline |
+| `db/` | SQLite / Postgres run store |
+| `web/` | Read-only dashboard and REST API |
+| `tasks/` | Celery app and task |
+
+## 🚀 Quick start
+
+**Prerequisites:** Python 3.9+. Optional scanners (`nmap`, `nuclei`, `nikto`, `gobuster`/`ffuf`, `sqlmap`) add coverage; Sentari uses each when present and reports it as missing otherwise.
 
 ```bash
+# install from source
 git clone https://github.com/ahmadoqsrawi/sentari.git
 cd sentari
 pip install .
-```
 
-Verify it:
-
-```bash
+# verify
 sentari --version
-# or, without installing:
-python -m sentari --version
+
+# first scan (localhost you control)
+sentari 127.0.0.1 --scope 127.0.0.1 --authorized --html report.html
 ```
 
 Optional extras:
@@ -48,34 +151,22 @@ pip install ".[distributed]"  # Celery workers + Redis
 pip install ".[postgres]"     # Postgres run store
 ```
 
-## Usage
-
-```bash
-sentari <target> --scope <target> --authorized [options]
-```
-
-Sentari will not act unless the target is inside a declared `--scope` and you pass `--authorized`. Use it only against systems you own or have written permission to test.
-
-## Phases
-
-Sentari follows a six-phase methodology. Phases 1 to 4 run tools; reporting and retest are output steps.
+## 🧭 Phases
 
 | # | Phase | What it does |
 |---|-------|--------------|
-| 1 | Reconnaissance | DNS resolution, port and service discovery (built-in TCP scan plus `nmap`), web fingerprint |
-| 2 | Scanning | HTTP security headers, TLS checks (including legacy-TLS handshakes), version disclosure, content discovery |
-| 3 | Vulnerability assessment | `nuclei` templates, and `sqlmap` behind a gate |
-| 4 | Verification | Read-only confirmation of findings; retrieved secrets are redacted |
-| 5 | Reporting | Evidence-linked HTML and JSON |
-| 6 | Retest | Diff a fresh scan against a prior run |
-
-List them at any time:
+| 1 | Reconnaissance | DNS, port and service discovery, web fingerprint |
+| 2 | Scanning | security headers, TLS checks, version disclosure, content discovery |
+| 3 | Vulnerability assessment | `nuclei` templates, gated `sqlmap` |
+| 4 | Verification | read-only confirmation of findings, secrets redacted |
+| 5 | Reporting | evidence-linked HTML and JSON |
+| 6 | Retest | diff a fresh scan against a prior run |
 
 ```bash
 sentari --list-phases
 ```
 
-## Options
+## ⚙️ Command-line options
 
 | Option | Description |
 |--------|-------------|
@@ -84,6 +175,7 @@ sentari --list-phases
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |
 | `--no-safe-mode` | Allow the gated, read-only verification checks. |
 | `--html FILE` / `--json FILE` | Write the report to a file. |
+| `--save-run DIR` | Save the run for the dashboard. |
 | `--db DSN` | Persist runs to SQLite (a path) or Postgres (a `postgres://` URL). |
 | `--retest FILE` / `--retest-latest` | Diff against a prior run (a file, or the last run in `--db`). |
 | `--ai` | Grounded AI triage of the findings. |
@@ -92,7 +184,7 @@ sentari --list-phases
 | `--enqueue` | Send the scan to a Celery worker. |
 | `--dry-run` | Show what would run without executing anything. |
 
-## Examples
+## 📝 Examples
 
 Full assessment with both report formats:
 
@@ -120,9 +212,9 @@ Browse saved runs in the read-only dashboard:
 sentari --serve --db runs.db     # http://127.0.0.1:8600
 ```
 
-## Configuration
+## 🔧 Configuration
 
-AI triage reads its key from the environment (or the matching `--ai-*` flags):
+AI triage reads its key from the environment, or from the matching `--ai-*` flags:
 
 ```bash
 export OPENAI_API_KEY=...        # or ANTHROPIC_API_KEY, etc.
@@ -130,15 +222,35 @@ export SENTARI_PROVIDER=openai   # optional; default provider
 export SENTARI_MODEL=gpt-4o      # optional; default model
 ```
 
-## Web dashboard and distributed runs
+## 🌐 Web dashboard and distributed runs
 
-The dashboard is read-only and binds to `127.0.0.1` by default. It shows completed runs and never starts a scan. For a Celery worker pool plus the dashboard behind Redis and Postgres, see [`deploy/README.md`](deploy/README.md), which covers Docker Compose and Kubernetes.
+The dashboard is read-only and binds to `127.0.0.1` by default. It shows completed runs and never starts a scan. For a Celery worker pool and the dashboard behind Redis and Postgres, see [`deploy/README.md`](deploy/README.md), which covers Docker Compose and Kubernetes.
 
-## Documentation
+## 📂 Project layout
 
-Architecture documentation (C4 model, with diagrams) is in [`docs/`](docs/): an overview, the architecture and workflow, per-domain deep dives, boundary interfaces, and a database overview.
+```
+sentari/
+├── cli.py            # argument parsing and output
+├── engine.py         # shared run_assessment path
+├── models.py         # Evidence / Finding / PhaseResult
+├── runner.py         # tool + built-in probe execution -> evidence
+├── authorization.py  # scope, attestation, audit log
+├── compliance.py     # OWASP / CWE / NIST tagging
+├── concurrency.py    # thread pool for I/O-bound probes
+├── retest.py         # baseline diff
+├── phases/           # recon, scanning, vuln, verify
+├── parsers/          # nmap XML, ...
+├── reporting/        # console + HTML
+├── ai/               # providers + grounded analyst
+├── db/               # SQLite / Postgres store
+├── web/              # read-only dashboard + REST API
+└── tasks/            # Celery app + task
+deploy/               # Dockerfile, docker-compose, k8s manifests
+docs/                 # C4 architecture documentation
+tests/                # unittest suite
+```
 
-## Testing
+## 🧪 Testing
 
 ```bash
 python -m unittest discover -s tests -v      # no dependencies
@@ -146,10 +258,14 @@ python -m unittest discover -s tests -v      # no dependencies
 pip install ".[dev]" && pytest -q
 ```
 
-## Authorization
+## 📚 Documentation
 
-Sentari runs real offensive tooling. It enforces authorization at runtime: it refuses to run unless the target is within a declared `--scope` and you attest with `--authorized`, and it records every run in an append-only audit log. See [SECURITY.md](SECURITY.md).
+Architecture documentation (C4 model, with diagrams) lives in [`docs/`](docs/): an overview, the architecture and workflow, per-domain deep dives, boundary interfaces, and a database overview.
 
-## License
+## 🔐 Authorization and safety
+
+Sentari runs real offensive tooling. It refuses to run unless the target is within a declared `--scope` and you attest with `--authorized`, and it records every run in an append-only audit log. Safe mode is on by default, so intrusive verification requires `--no-safe-mode`. Use it only against systems you own or have written permission to test. See [SECURITY.md](SECURITY.md).
+
+## 📄 License
 
 Proprietary, no-derivatives. See [LICENSE](LICENSE) and [NOTICE](NOTICE). You may use and share verbatim copies. You may not modify it, create derivatives, or redistribute modified versions.
