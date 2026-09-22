@@ -223,6 +223,8 @@ Each package has one job:
 
 ## 🚀 Quick start
 
+New here? The step-by-step, beginner-friendly guide with a required-vs-optional breakdown is in **[INSTALL.md](INSTALL.md)**.
+
 **Prerequisites:** Python 3.9+. Optional scanners (`nmap`, `nuclei`, `nikto`, `gobuster`/`ffuf`, `sqlmap`) add coverage; Sentari uses each when present and reports it as missing otherwise.
 
 ```bash
