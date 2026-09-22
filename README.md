@@ -433,6 +433,15 @@ pip install ".[dev]" && pytest -q
 
 Architecture documentation (C4 model, with diagrams) lives in [`docs/`](docs/): an overview, the architecture and workflow, per-domain deep dives, boundary interfaces, and a database overview.
 
+## 🤖 Agent skills
+
+Sentari ships [Agent Skills](skills/) so a coding agent (Claude Code, Cursor, and
+similar) can drive it correctly. Each `skills/*/SKILL.md` teaches one task, from a
+full pentest to OWASP Top 10, API testing, SAST, cloud audits, CI gating, and
+remediation PRs. They follow the open Agent Skills format catalogued at
+[agentskills.io](https://agentskills.io/). Point your agent at the `skills/`
+directory (for Claude Code, copy a folder into `~/.claude/skills/`).
+
 ## 🔐 Authorization and safety
 
 Sentari runs real offensive tooling. It refuses to run unless the target is within a declared `--scope` and you attest with `--authorized`, and it records every run in an append-only audit log. Safe mode is on by default, so intrusive verification requires `--no-safe-mode`. Use it only against systems you own or have written permission to test. See [SECURITY.md](SECURITY.md).
