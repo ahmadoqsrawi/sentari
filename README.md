@@ -59,10 +59,16 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - TLS inspection, including real handshakes against TLS 1.0/1.1 to detect legacy protocols
 - Technology and version disclosure
 - Content discovery with `gobuster`/`ffuf`, or a built-in probe for common sensitive paths
+- **API spec ingestion** (`--openapi`): reads an OpenAPI v3, Swagger v2, or Postman collection and turns its endpoints into scan targets
 
 ### 🧪 Vulnerability assessment
 - `nuclei` template scanning, mapped into findings with their evidence
 - `sqlmap`, behind a gate so it only runs when you opt in
+
+### 🖥️ Client-side DAST (`--browser`)
+- Drives a headless browser (Playwright) against the discovered URLs
+- Reflected XSS confirmed by actual execution (a unique payload must set a JS marker), plus password-over-HTTP and mixed-content checks
+- Off by default; each finding carries the browser observation as evidence
 
 ### ✅ Verification (safe exploitation)
 - Read-only confirmation of findings, such as fetching an exposed `.git/config` to prove it is real
@@ -102,6 +108,8 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - **SIEM export**: ship findings and a run summary to Splunk (HEC), Elasticsearch, syslog, or a generic webhook
 - **Prometheus metrics**: a `/metrics` endpoint on the dashboard, plus a Grafana dashboard under `deploy/grafana/`
 - **Model catalog**: `--list-models` shows the known models per provider; any provider-specific id also works
+- **GitHub Action**: a composite `action.yml` runs a Sentari assessment in CI with an authorization gate; see `examples/github-action-usage.yml`
+- **Remediation as a draft PR**: `--autofix` writes a Markdown fix guide from the findings; `--autofix-pr` opens it as a draft PR (suggest-only, never edits code)
 - **Cloud asset discovery**: `--cloud aws` (also azure/gcp) lists internet-facing assets in your own account so you can bring them into scope. Enumerate only, never scanned automatically
 - **Scheduled retests**: a Celery beat schedule (`SENTARI_SCHEDULE_*`) reruns a target on a cron and reports the delta vs the previous run
 - **CVSS scoring**: CVSS v3.1 base scores on nuclei findings that carry a vector
@@ -148,6 +156,8 @@ Each package has one job:
 | `phases/` | `osint`, `recon`, `scanning`, `vuln`, `verify`, and gated `exploit` / `postexploit` |
 | `threatintel` / `classify` | CISA KEV correlation; rule-based service classification |
 | `openvas` / `nexpose` / `privesc` | External scanner connectors; SSH privilege-escalation enumeration |
+| `openapi` / `browser` / `sandbox` | API-spec ingestion; headless-browser DAST; Docker sandbox for gated tools |
+| `autofix` | Remediation guide and optional draft PR (suggest-only) |
 | `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
 | `parsers/` | Tool-output parsers (for example, `nmap` XML) |
@@ -191,7 +201,8 @@ pip install ".[postgres]"     # Postgres run store
 | 0 | OSINT | passive subdomain enumeration (subfinder/amass/theHarvester) + Shodan lookup |
 | 1 | Reconnaissance | DNS, port and service discovery (built-in / `naabu` / `nmap`), web fingerprint (built-in / `httpx`) |
 | 2 | Scanning | security headers, TLS checks, version disclosure, content discovery |
-| 3 | Vulnerability assessment | `nuclei` templates (with CVSS scoring), gated `sqlmap` |
+| 3 | Vulnerability assessment | `nuclei` templates (with CVSS scoring), gated `sqlmap`, optional OpenVAS/Nexpose |
+| 3 | Client-side DAST (`--browser`) | headless-browser reflected-XSS (confirmed by execution) and DOM checks |
 | 4 | Verification | read-only confirmation of findings, secrets redacted |
 | 5 | Reporting | evidence-linked HTML, JSON, XML, PDF |
 | 6 | Retest | diff a fresh scan against a prior run |
@@ -201,7 +212,7 @@ Two gated offensive phases exist but are off by default and never in the phase l
 - **Exploitation** (`--exploit`): operator-named Metasploit modules plus a bounded, redacted exfil-simulation.
 - **Post-exploitation** (`--postexploit`): CrackMapExec SMB enumeration, bloodhound-python AD collection, and read-only SSH privilege-escalation enumeration (`--privesc`), with credentials you supply.
 
-Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string, and is for authorized, non-production targets only. The privilege-escalation checks are read-only and change nothing on the host.
+Each runs only with `--no-safe-mode`, its own flag, and an exact confirmation string, and is for authorized, non-production targets only. The privilege-escalation checks are read-only and change nothing on the host. With `--sandbox`, the gated offensive tools run inside a disposable `docker run --rm` container instead of on the host; this isolates where commands run and does not loosen any gate.
 
 ```bash
 sentari --list-phases
@@ -220,6 +231,10 @@ sentari --list-phases
 | `--asset-value {low,medium,high,critical}` | Asset criticality for business-impact scoring. |
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
 | `--openvas` / `--nexpose` | Pull results from a configured OpenVAS (`GVM_*`) or Nexpose/InsightVM (`NEXPOSE_*`) instance. |
+| `--openapi SRC` (+ `--openapi-base-url`) | Ingest an OpenAPI/Swagger/Postman spec; its endpoints become scan targets. |
+| `--browser` | Client-side DAST with a headless browser (needs Playwright). |
+| `--sandbox` (+ `--sandbox-image`) | Run the gated offensive tools inside a disposable Docker container. |
+| `--autofix FILE` / `--autofix-pr` (+ `--autofix-repo`) | Write a remediation guide; optionally open it as a draft PR. |
 | `--ai-osint` | AI proposes subdomain labels; DNS confirms them (runs locally). |
 | `--exploit` (+ `--exploit-module`, `--exploit-confirm`) | Gated exploitation, authorized non-production only. |
 | `--postexploit` (+ `--postexploit-user/-pass/-domain/-dc`, `--postexploit-confirm`, `--bloodhound`, `--privesc`) | Gated post-exploitation (lateral movement, AD collection, SSH privesc enumeration), authorized non-production only. |

@@ -4,6 +4,15 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.7.0] - 2026-09-22
+
+### Added
+- **API spec ingestion** (`openapi.py`, `--openapi SRC`, `--openapi-base-url`): reads an OpenAPI v3, Swagger v2, or Postman collection (file or URL) and turns the endpoints it describes into scan targets for nuclei and the browser phase. JSON via the standard library; YAML via the optional `api` extra. It reads the spec; it invents no endpoints.
+- **Client-side DAST** (`browser.py`, `phases/browser.py`, `--browser`): drives a headless browser (Playwright) against the discovered URLs to find reflected XSS confirmed by actual execution (a unique payload must set a JS marker, a working proof rather than a reflection guess), password fields served over HTTP, and mixed content. Off by default; every finding carries the browser observation as evidence.
+- **Docker exploit sandbox** (`sandbox.py`, `--sandbox`, `--sandbox-image`): the gated exploitation and post-exploitation tools can run inside a disposable `docker run --rm` container instead of on the host. It isolates where already-gated commands run; it does not change reporting or loosen any gate. The recorded evidence shows the actual `docker run ...` command.
+- **Remediation guide and draft PR** (`autofix.py`, `--autofix FILE`, `--autofix-pr`, `--autofix-repo`): builds a Markdown fix guide from the real findings (and the grounded AI remediation when present) and can open it as a *draft* pull request via the GitHub CLI. Suggest-only: it never edits application code and never merges.
+- **GitHub Action** (`action.yml`, `examples/github-action-usage.yml`): a composite action so a repository can run a Sentari assessment in CI, with an authorization gate and report artifacts.
+
 ## [0.6.0] - 2026-09-22
 
 ### Added
