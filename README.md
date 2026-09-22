@@ -108,6 +108,7 @@ Sentari runs real security tools and reports only what they actually found. Ever
 ### 🕸️ HTTP proxy capture (`--proxy`, `--proxy-ingest`)
 - `--proxy PORT` runs an mitmproxy capture; route a browser or app through it to record real traffic
 - `--proxy-ingest FILE` analyzes the capture (JSONL or HAR) for JWT weaknesses, credentials/secrets sent in cleartext, and insecure cookies
+- `--proxy-web PORT` launches mitmweb for **live, interactive** request/response editing; `--tamper FILE` (with `--set-header`/`--set-param`/`--set-body`) replays a captured request with overrides and diffs the response; `--fuzz-param` sends it through a value list
 
 ### ✅ Verification (safe exploitation)
 - Read-only confirmation of findings, such as fetching an exposed `.git/config` to prove it is real
@@ -201,6 +202,7 @@ Each package has one job:
 | `accesscontrol` | Broken-access-control / IDOR by comparing identities |
 | `oob` / `injection` | Out-of-band listener; SSRF/XXE/cmdi/SSTI/NoSQLi/mass-assignment logic |
 | `deserial` / `sessionfix` / `workflow` | Deserialization detection; session-fixation check; business-logic workflow replay |
+| `tamper` | Request tamper/replay + response diff; parameter fuzzing |
 | `autofix` | Remediation guide and optional draft PR (suggest-only) |
 | `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
@@ -293,6 +295,8 @@ sentari --list-phases
 | `--graph` (+ `--graph-target`) | Graph of agents: shared blackboard, parallel targets, cross-asset correlation. |
 | `--poc SCRIPT` (+ `--poc-image`) | Run a Python PoC against the target in a sandbox container (gated). |
 | `--proxy PORT` / `--proxy-ingest FILE` | Capture HTTP traffic via mitmproxy / analyze a capture (JSONL or HAR). |
+| `--proxy-web PORT` | Interactive live request/response tampering via mitmweb. |
+| `--tamper FILE` (+ `--set-header/param/body`, `--fuzz-param`) | Replay a captured request with overrides and diff the response. |
 | `--browser` | Client-side DAST with a headless browser (needs Playwright). |
 | `--sandbox` (+ `--sandbox-image`) | Run the gated offensive tools inside a disposable Docker container. |
 | `--autofix FILE` / `--autofix-pr` (+ `--autofix-repo`) | Write a remediation guide; optionally open it as a draft PR. |

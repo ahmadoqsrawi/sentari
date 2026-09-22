@@ -10,7 +10,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,6 +75,19 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Capture file for --proxy (default sentari-flows.jsonl).")
     p.add_argument("--proxy-ingest", metavar="FILE",
                    help="Analyze a captured mitmproxy JSONL or HAR file for issues.")
+    p.add_argument("--proxy-web", type=int, metavar="PORT",
+                   help="Launch mitmweb for interactive live request/response tampering, then exit.")
+    p.add_argument("--tamper", metavar="FILE",
+                   help="Replay a captured request (JSONL/HAR) with overrides and diff the response.")
+    p.add_argument("--tamper-index", type=int, default=0,
+                   help="Which captured request to tamper (default 0).")
+    p.add_argument("--set-header", action="append", default=[], metavar="H=V",
+                   help="Override a request header for --tamper (repeatable).")
+    p.add_argument("--set-param", action="append", default=[], metavar="P=V",
+                   help="Override a query parameter for --tamper (repeatable).")
+    p.add_argument("--set-body", metavar="TEXT", help="Override the request body for --tamper.")
+    p.add_argument("--fuzz-param", metavar="NAME", help="Parameter to fuzz on the --tamper request.")
+    p.add_argument("--fuzz-values", metavar="FILE", help="Newline-separated values for --fuzz-param.")
     p.add_argument("--cloud-audit", choices=["aws", "azure", "gcp", "kubernetes"],
                    help="Audit cloud account configuration with Prowler.")
     p.add_argument("--sast", metavar="PATH",
@@ -242,6 +255,67 @@ def main(argv: list[str] | None = None) -> int:
               "(host network). For authorized exploit development only.")
         return subprocess.run(["docker", "run", "--rm", "-it", "--network", "host",
                                args.shell_image, "/bin/sh"]).returncode
+
+    if args.proxy_web:
+        import shutil
+        import subprocess
+        from . import proxy as proxy_mod
+        if not shutil.which("mitmweb"):
+            print("error: mitmproxy not installed (pip install mitmproxy)", file=sys.stderr)
+            return 5
+        addon = str(Path(args.proxy_out).with_suffix(".addon.py"))
+        proxy_mod.write_addon(addon)
+        import os as _os
+        env = {**_os.environ, "SENTARI_PROXY_OUT": args.proxy_out}
+        print(f"Launching mitmweb on :{args.proxy_web} (interactive request/response editing).")
+        print(f"Also capturing to {args.proxy_out}. Point your browser/app at the proxy; "
+              "edit requests live in the web UI.")
+        try:
+            subprocess.run(["mitmweb", "-s", addon, "--listen-port", str(args.proxy_web)], env=env)
+        except KeyboardInterrupt:
+            print("\nstopped.")
+        return 0
+
+    if args.tamper:
+        from . import proxy as proxy_mod
+        from . import tamper as tamper_mod
+        flows = proxy_mod._load(args.tamper)
+        if not flows or args.tamper_index >= len(flows):
+            print(f"error: no request at index {args.tamper_index} in {args.tamper} "
+                  f"({len(flows)} captured)", file=sys.stderr)
+            return 4
+        req = tamper_mod.request_from_flow(flows[args.tamper_index])
+        orig_resp = (flows[args.tamper_index].get("response", {}) or {}).get("content", "")
+
+        def _kv(items):
+            out = {}
+            for it in items:
+                k, _, v = it.partition("=")
+                out[k.strip()] = v
+            return out
+
+        if args.fuzz_param:
+            values = []
+            if args.fuzz_values:
+                values = [ln for ln in Path(args.fuzz_values).read_text().splitlines() if ln]
+            rows = tamper_mod.fuzz(req, args.fuzz_param, values, timeout=args.timeout)
+            print(f"Fuzzing '{args.fuzz_param}' on {req['url']} ({len(rows)} values):")
+            for r in rows:
+                print(f"  value={r['value']!r:30} status={r['status']} len={r['length']}")
+            return 0
+
+        mutated = tamper_mod.apply_mutations(
+            req, set_headers=_kv(args.set_header), set_params=_kv(args.set_param),
+            set_body=args.set_body)
+        status, headers, body = tamper_mod.send(mutated, timeout=args.timeout)
+        print(f"{mutated['method']} {mutated['url']}")
+        print(f"-> HTTP {status}, {len(body)} bytes")
+        d = tamper_mod.diff(orig_resp, body)
+        if d:
+            print("\n-- response diff (original vs tampered) --\n" + d)
+        else:
+            print("(no diff vs the captured response)")
+        return 0
 
     if args.proxy:
         import shutil

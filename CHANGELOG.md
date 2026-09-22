@@ -4,6 +4,13 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.13.0] - 2026-09-22
+
+### Added
+- **Interactive proxy tampering** (`--proxy-web`): launches mitmweb so requests and responses can be intercepted and edited live in a browser UI, while also capturing to the JSONL file.
+- **Scriptable request tamper and replay** (`tamper.py`, `--tamper FILE`, `--set-header`, `--set-param`, `--set-body`): replays a captured request with overrides and shows a unified diff of the response against the original.
+- **Parameter fuzzing** (`--fuzz-param`, `--fuzz-values`): sends one captured request through a list of values and reports the status/length of each response so a behavior change stands out.
+
 ## [0.12.0] - 2026-09-22
 
 ### Added
