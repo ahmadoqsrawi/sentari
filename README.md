@@ -324,6 +324,7 @@ sentari --list-phases
 | `--agent` / `--goal` | Full AI agent: the model calls tools directly, findings stay evidence-anchored. |
 | `--ai-provider` / `--ai-model` / `--ai-base-url` | Choose the provider and model. |
 | `--serve` | Start the read-only web dashboard instead of scanning. |
+| `--tui` (+ `--json`/`--runs-dir`/`--db`) | Browse results in an interactive terminal viewer. |
 | `--siem-url` / `--siem-type` | Ship findings to a SIEM (webhook, splunk, elasticsearch, syslog). |
 | `--list-models` | List known AI models per provider and exit. |
 | `--no-anomaly` | Do not flag unusual findings for manual review. |

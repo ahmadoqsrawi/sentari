@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.17.2"
+__version__ = "0.18.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -166,6 +166,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Dispatch the scan to a Celery worker instead of running locally.")
     p.add_argument("--serve", action="store_true",
                    help="Start the read-only web dashboard instead of scanning.")
+    p.add_argument("--tui", action="store_true",
+                   help="Browse results in an interactive terminal viewer (from --json, --runs-dir, or --db), then exit.")
     p.add_argument("--port", type=int, default=8600, help="Dashboard port (default 8600).")
     p.add_argument("--host", default="127.0.0.1",
                    help="Dashboard bind address (default 127.0.0.1; use 0.0.0.0 in a container).")
@@ -256,6 +258,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.serve:
         from .web import serve
         serve(runs_dir=args.runs_dir, port=args.port, host=args.host, db=args.db)
+        return 0
+
+    if args.tui:
+        from pathlib import Path as _P
+        from . import tui
+        jf = args.json if (args.json and _P(args.json).exists()) else None
+        runs = tui.load(jf, args.runs_dir, args.db)
+        if not runs:
+            print("No runs to view. Use --json FILE, --runs-dir DIR, or --db DSN.",
+                  file=sys.stderr)
+            return 4
+        tui.view(runs)
         return 0
 
     if args.shell:
