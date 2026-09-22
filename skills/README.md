@@ -23,6 +23,12 @@ and registry goes there.
 | [cloud-security-testing](cloud-security-testing/SKILL.md) | discover cloud assets and audit account config |
 | [ci-security-scanning-with-sentari](ci-security-scanning-with-sentari/SKILL.md) | add a security gate to CI/CD |
 | [fix-security-vulnerabilities-with-sentari](fix-security-vulnerabilities-with-sentari/SKILL.md) | turn findings into a remediation guide or draft PR |
+| [network-infrastructure-scanning](network-infrastructure-scanning/SKILL.md) | scan a host or network for open services and exposure |
+| [exploitation-and-post-exploitation](exploitation-and-post-exploitation/SKILL.md) | run the gated offensive features (authorized non-production only) |
+| [ai-autonomous-security-testing](ai-autonomous-security-testing/SKILL.md) | drive Sentari with an LLM (triage, autopilot, agent, graph) |
+| [retest-and-monitor](retest-and-monitor/SKILL.md) | verify fixes, schedule retests, track trends over time |
+| [security-reporting-and-dashboards](security-reporting-and-dashboards/SKILL.md) | produce reports, a dashboard, or SIEM export |
+| [risk-prioritization](risk-prioritization/SKILL.md) | triage and rank findings by risk |
 
 ## Using them
 

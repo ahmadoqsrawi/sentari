@@ -10,7 +10,7 @@ All notable changes to Sentari are recorded here. The format is based on
 - **Interactive proxy tampering** (`--proxy-web`): launches mitmweb so requests and responses can be intercepted and edited live in a browser UI, while also capturing to the JSONL file.
 - **Scriptable request tamper and replay** (`tamper.py`, `--tamper FILE`, `--set-header`, `--set-param`, `--set-body`): replays a captured request with overrides and shows a unified diff of the response against the original.
 - **Parameter fuzzing** (`--fuzz-param`, `--fuzz-values`): sends one captured request through a list of values and reports the status/length of each response so a behavior change stands out.
-- **Agent skills** (`skills/`): eight `SKILL.md` files in the open Agent Skills format (agentskills.io) so a coding agent can drive Sentari for pentesting, OWASP Top 10, API testing, SAST, cloud audits, CI gating, and remediation PRs.
+- **Agent skills** (`skills/`): fourteen `SKILL.md` files in the open Agent Skills format (agentskills.io), one per capability area, so a coding agent can drive Sentari for pentesting, web and API testing, OWASP Top 10, network scanning, SAST, cloud audits, gated exploitation, AI-driven modes, retest and monitoring, reporting and dashboards, risk prioritization, CI gating, and remediation PRs.
 
 ## [0.12.0] - 2026-09-22
 

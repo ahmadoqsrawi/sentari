@@ -436,9 +436,11 @@ Architecture documentation (C4 model, with diagrams) lives in [`docs/`](docs/): 
 ## 🤖 Agent skills
 
 Sentari ships [Agent Skills](skills/) so a coding agent (Claude Code, Cursor, and
-similar) can drive it correctly. Each `skills/*/SKILL.md` teaches one task, from a
-full pentest to OWASP Top 10, API testing, SAST, cloud audits, CI gating, and
-remediation PRs. They follow the open Agent Skills format catalogued at
+similar) can drive it correctly. There is one `SKILL.md` per capability area, from
+a full pentest to OWASP Top 10, web and API testing, network scanning, SAST,
+cloud audits, gated exploitation, AI-driven modes, retest/monitoring, reporting,
+risk prioritization, CI gating, and remediation PRs. They follow the open Agent
+Skills format catalogued at
 [agentskills.io](https://agentskills.io/). Point your agent at the `skills/`
 directory (for Claude Code, copy a folder into `~/.claude/skills/`).
 
