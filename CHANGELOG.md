@@ -4,6 +4,12 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.3.0] - 2026-09-22
+
+### Added
+- **More AI providers** (`sentari/ai/providers.py`): 14 in total. OpenAI-compatible entries are data-driven (OpenAI, OpenRouter, DeepSeek, Mistral, Groq, xAI, Together, Fireworks, Perplexity, GLM, NVIDIA), plus Anthropic, Google, and Ollama. An unknown name is treated as an OpenAI-compatible endpoint. The catalog and `--list-models` are expanded to match.
+- **Native function-calling** for the agent: the OpenAI and Anthropic providers implement `tool_turn`, and the agent uses it when available, falling back to the JSON protocol otherwise. Tool schemas live in `sentari/agent/schema.py`. The same safety rules hold: fixed host, validated arguments, and evidence-anchored findings.
+
 ## [0.2.0] - 2026-09-22
 
 ### Added

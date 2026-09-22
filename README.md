@@ -69,7 +69,7 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - Runs only with `--no-safe-mode`; retrieved secrets are redacted before they reach any report
 
 ### 🤖 Grounded AI triage
-- Multi-provider: OpenAI, Anthropic, Google, OpenRouter, and local models through Ollama
+- 14 providers: OpenAI, Anthropic, Google, DeepSeek, Mistral, Groq, xAI, Together, Fireworks, Perplexity, GLM, NVIDIA, OpenRouter, and local models through Ollama. Any provider-specific model id works, and `--list-models` shows the known ones.
 - Prioritizes findings, groups them into attack chains, and suggests fixes
 - Works only from the real findings, and drops any reference the model invents
 
@@ -82,6 +82,7 @@ Sentari runs real security tools and reports only what they actually found. Ever
 - With `--agent`, the model calls tools directly in a loop (dns, port scan, http, nuclei, gated sqlmap), plans each step from the real results, and can author findings
 - A finding is accepted only when it cites an `evidence_id` a tool actually returned; a verifier pass then drops any model-authored finding the evidence does not support
 - The host is fixed and arguments are validated, so an injected instruction in a target's response cannot redirect the host or run an arbitrary command
+- Uses **native function-calling** on providers that support it (OpenAI and Anthropic tool APIs), and falls back to a provider-agnostic JSON protocol otherwise
 - `--goal "focus on the API"` gives the agent a natural-language objective; with no model it runs a fixed recon sequence
 
 ### 📋 Compliance mapping

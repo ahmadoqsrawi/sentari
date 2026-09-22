@@ -66,6 +66,23 @@ def run_agent(target: str, scope: Scope, authorized: bool, audit: AuditLog, prov
         out.results = [_result(disp, runner)]
         return out
 
+    if provider.supports_tools():
+        try:
+            _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out)
+        except Exception as e:
+            out.note = f"native tool-calling failed ({e}); used the JSON protocol instead."
+            _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out)
+    else:
+        _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out)
+
+    if verify and disp.findings:
+        _verify(provider, disp, runner, audit, target)
+    out.results = [_result(disp, runner)]
+    return out
+
+
+def _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out) -> None:
+    """Provider-agnostic loop: the model returns a JSON action each step."""
     convo: list[str] = []
     if goal:
         convo.append(f"Goal: {goal}")
@@ -87,10 +104,35 @@ def run_agent(target: str, scope: Scope, authorized: bool, audit: AuditLog, prov
         out.transcript.append({"step": step, "tool": tool, "args": args, "observation": obs})
         convo.append(f"[{step}] {tool}({json.dumps(args)}) -> {obs}")
 
-    if verify and disp.findings:
-        _verify(provider, disp, runner, audit, target)
-    out.results = [_result(disp, runner)]
-    return out
+
+def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out) -> None:
+    """Native function-calling loop (OpenAI / Anthropic tool APIs)."""
+    from .schema import OPENAI_TOOLS
+    system = _system(safe_mode)
+    messages = [{"role": "user",
+                 "content": (f"Goal: {goal}\n" if goal else "") +
+                            "Assess the target using the tools. Call finish when done."}]
+    for step in range(1, max_steps + 1):
+        turn = provider.tool_turn(system, messages, OPENAI_TOOLS, max_tokens=800)
+        calls = turn.get("tool_calls") or []
+        if not calls:
+            out.transcript.append({"step": step, "text": (turn.get("text") or "")[:200]})
+            break
+        messages.append({"role": "assistant", "content": turn.get("text"), "tool_calls": calls})
+        finished = False
+        for c in calls:
+            audit.record("agent.step", target=target, step=step, tool=c["name"])
+            if c["name"] == "finish":
+                out.transcript.append({"step": step, "tool": "finish", "args": c["args"]})
+                messages.append({"role": "tool", "tool_call_id": c["id"], "content": "ok"})
+                finished = True
+                continue
+            obs = disp.dispatch(c["name"], c["args"])
+            out.transcript.append({"step": step, "tool": c["name"], "args": c["args"],
+                                   "observation": obs})
+            messages.append({"role": "tool", "tool_call_id": c["id"], "content": obs})
+        if finished:
+            break
 
 
 def _verify(provider, disp: ToolDispatcher, runner: ToolRunner,
