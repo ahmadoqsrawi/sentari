@@ -166,22 +166,25 @@ Sentari is an AI-driven penetration testing platform for developers and security
 
 ## 🏗️ Architecture
 
-All phases run tools through one shared engine; reporting and retest read the results.
+All phases run tools through one shared engine; gated exploitation, enrichment, AI triage, reporting, and retest read the results.
 
 ```mermaid
-flowchart LR
+flowchart TB
     A[CLI] --> AUTH{authorized?<br/>in scope?}
     AUTH -- no --> STOP[refuse + audit]
     AUTH -- yes --> ENG[engine.run_assessment]
-    ENG --> P1[1. Recon]
-    P1 --> P2[2. Scanning]
-    P2 --> P3[3. Vuln assessment]
-    P3 --> P4[4. Verification]
-    P4 --> C[Compliance tags]
-    C --> AI[AI triage]
-    AI --> R[(Reports: HTML / JSON)]
+    ENG --> REC[OSINT + Recon + Scanning]
+    REC --> DET[Detection: vuln, API, access-control,<br/>injection, browser DAST, SAST, cloud-audit]
+    DET --> VER[Verification]
+    VER --> GATE{--no-safe-mode +<br/>--exploit / --postexploit?}
+    GATE -- yes --> EXP[Gated exploitation +<br/>post-exploitation]
+    GATE -- no --> ENR[Enrichment: compliance, CVSS,<br/>CISA KEV, risk, business impact]
+    EXP --> ENR
+    ENR --> AI[AI triage / autopilot / agent / graph]
+    AI --> R[(Reports: HTML / JSON / XML / PDF)]
     AI --> DB[(SQLite / Postgres)]
-    DB --> WEB[Web dashboard]
+    DB --> WEB[Dashboard + SIEM + metrics]
+    AI --> FIX[Remediation guide / draft PR /<br/>code-fix patches]
     ENG -. every tool call .-> EV[[Evidence store]]
     EV -. backs every .-> F[Finding]
 ```
