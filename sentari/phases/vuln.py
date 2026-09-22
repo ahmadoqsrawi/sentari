@@ -53,7 +53,12 @@ class VulnPhase(Phase):
             result.notes.append("nuclei not installed: skipping template scan (no fabrication).")
 
         self._sqlmap(ctx, result, urls)
-        self._openvas(ctx, result)
+        if ctx.options.get("openvas"):
+            from .. import openvas
+            self._external_source(ctx, result, "OpenVAS", openvas)
+        if ctx.options.get("nexpose"):
+            from .. import nexpose
+            self._external_source(ctx, result, "Nexpose", nexpose)
 
     # --- nuclei ---
     def _nuclei(self, ctx: PhaseContext, result: PhaseResult, urls: list[str]) -> None:
@@ -98,31 +103,28 @@ class VulnPhase(Phase):
         else:
             result.notes.append(f"nuclei reported {count} match(es).")
 
-    # --- OpenVAS / Greenbone (optional external source) ---
-    def _openvas(self, ctx: PhaseContext, result: PhaseResult) -> None:
-        if not ctx.options.get("openvas"):
-            return
-        from .. import openvas
+    # --- external scanner sources (OpenVAS, Nexpose): optional and graceful ---
+    def _external_source(self, ctx: PhaseContext, result: PhaseResult, name: str, mod) -> None:
         target_ip = (ctx.shared.get("ips") or [None])[0] or ctx.shared.get("host") or ctx.target
-        rows, err = openvas.fetch_results(target_ip)
+        rows, err = mod.fetch_results(target_ip)
         if err:
-            result.notes.append(f"OpenVAS: {err}")
+            result.notes.append(f"{name}: {err}")
             return
         sev_map = {"critical": Severity.CRITICAL, "high": Severity.HIGH,
                    "medium": Severity.MEDIUM, "low": Severity.LOW, "info": Severity.INFO}
+        tag = name.lower()
         for row in rows:
-            body = (f"name={row['name']}\nhost={row['host']}\ncvss={row['cvss']}\n"
-                    f"oid={row['oid']}")
-            ev = ctx.runner.record_internal(["openvas-result", row["oid"] or row["name"]],
-                                            0, body)
+            ref = row.get("oid") or row.get("id") or row["name"]
+            body = f"name={row['name']}\nhost={row['host']}\ncvss={row['cvss']}\nref={ref}"
+            ev = ctx.runner.record_internal([f"{tag}-result", str(ref)], 0, body)
             result.findings.append(Finding(
-                title=f"{row['name']} (OpenVAS)",
+                title=f"{row['name']} ({name})",
                 severity=sev_map.get(row["severity"], Severity.INFO),
-                description=f"Greenbone/OpenVAS reported '{row['name']}' on {row['host']}.",
+                description=f"{name} reported '{row['name']}' on {row['host']}.",
                 evidence_ids=[ev.id], target=ctx.target, phase=self.name,
-                location=row["host"], metadata={"source": "openvas", "oid": row["oid"],
+                location=row["host"], metadata={"source": tag, "ref": ref,
                                                 "cvss": {"score": row["cvss"]}}))
-        result.notes.append(f"OpenVAS reported {len(rows)} result(s).")
+        result.notes.append(f"{name} reported {len(rows)} result(s).")
 
     # --- sqlmap (gated) ---
     def _sqlmap(self, ctx: PhaseContext, result: PhaseResult, urls: list[str]) -> None:
