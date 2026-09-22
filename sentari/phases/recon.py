@@ -81,6 +81,8 @@ class ReconPhase(Phase):
         ctx.shared["ips"] = ips
         ctx.shared["open_ports"] = open_ports
 
+        self._ingest_api_spec(ctx, result)
+
         tp = target_port(ctx.target)
         fp_ports = sorted(p for p in open_ports if p in WEB_PORTS or p == tp)
         for port in fp_ports:
@@ -88,6 +90,31 @@ class ReconPhase(Phase):
                 self._httpx_fingerprint(ctx, result, host, port)
             else:
                 self._web_fingerprint(ctx, result, host, port)
+
+    # --- API spec ingestion (OpenAPI / Swagger / Postman) ---
+    def _ingest_api_spec(self, ctx: PhaseContext, result: PhaseResult) -> None:
+        src = ctx.options.get("openapi")
+        if not src:
+            return
+        from .. import openapi
+        spec, err = openapi.load_spec(src)
+        if err:
+            result.notes.append(f"API spec: {err}")
+            return
+        endpoints = openapi.extract_endpoints(spec, ctx.options.get("openapi_base_url"))
+        if not endpoints:
+            result.notes.append("API spec: no endpoints found.")
+            return
+        ctx.shared["api_endpoints"] = endpoints
+        ev = ctx.runner.record_internal(["openapi-ingest", src], 0, "\n".join(endpoints))
+        result.findings.append(Finding(
+            title=f"API endpoints from spec: {len(endpoints)}", severity=Severity.INFO,
+            description="Ingested from the API spec: " + ", ".join(endpoints[:20])
+                        + (" ..." if len(endpoints) > 20 else ""),
+            evidence_ids=[ev.id], target=ctx.target, phase=self.name,
+            location=src, metadata={"endpoints": endpoints,
+                                    "hosts": sorted(openapi.hosts_of(endpoints))}))
+        result.notes.append(f"API spec: ingested {len(endpoints)} endpoint(s) as scan targets.")
 
     # --- DNS ---
     def _resolve(self, ctx: PhaseContext, result: PhaseResult, host: str) -> list[str]:

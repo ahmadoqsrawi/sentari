@@ -29,6 +29,10 @@ def _urls(ctx: PhaseContext) -> list[str]:
     for host, port in _web_targets(ctx):
         scheme = "https" if port in (443, 8443) else "http"
         out.append(f"{scheme}://{host}:{port}")
+    # API endpoints ingested from an OpenAPI/Swagger/Postman spec, if any.
+    for u in ctx.shared.get("api_endpoints", []):
+        if u not in out:
+            out.append(u)
     return out
 
 
