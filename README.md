@@ -190,25 +190,27 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 
 ## 🏗️ Architecture
 
-All phases run tools through one shared engine; gated exploitation, enrichment, AI triage, reporting, and retest read the results.
+Both the CLI (and wizard) and the multi-tenant platform API drive one shared engine; every phase runs its tools through it, and gated exploitation, enrichment, AI triage/orchestration, the live monitor, reporting, and retest all read the same evidence-backed results.
 
 ```mermaid
 flowchart LR
-    A[CLI] --> AUTH{authorized?<br/>in scope?}
+    A[CLI / wizard] --> AUTH{authorized?<br/>in scope?}
+    PLAT[Platform API<br/>serve-api: multi-tenant,<br/>scheduled, Celery] --> AUTH
     AUTH -- no --> STOP[refuse + audit]
-    AUTH -- yes --> ENG[engine.run_assessment]
+    AUTH -- yes --> ENG[engine.run_assessment<br/>checkpoint / resume / cancel]
     ENG --> REC[OSINT + Recon + Scanning]
-    REC --> DET[Detection: vuln, API, access-control,<br/>injection, browser DAST, SAST, cloud-audit]
+    REC --> DET[Detection: vuln, API, access-control, injection,<br/>framework/SPA, browser DAST, SAST, cloud-audit]
     DET --> VER[Verification]
     VER --> GATE{--no-safe-mode +<br/>--exploit / --postexploit?}
     GATE -- yes --> EXP[Gated exploitation +<br/>post-exploitation]
-    GATE -- no --> ENR[Enrichment: compliance, CVSS,<br/>CISA KEV, risk, business impact]
+    GATE -- no --> ENR[Enrichment: compliance, CVSS, CISA KEV,<br/>risk, business impact, confidence, coverage]
     EXP --> ENR
-    ENR --> AI[AI triage / autopilot / agent / graph]
-    AI --> R[(Reports: HTML / JSON / XML / PDF)]
+    ENR --> AI[AI: triage / autopilot / agent / graph /<br/>multi-agent orchestration]
+    AI --> R[(Reports: HTML / JSON / XML / PDF /<br/>SARIF / Markdown)]
     AI --> DB[(SQLite / Postgres)]
-    DB --> WEB[Dashboard + SIEM + metrics]
+    DB --> WEB[Dashboard + view + SIEM + metrics]
     AI --> FIX[Remediation guide / draft PR /<br/>code-fix patches]
+    ENG -. live events .-> LIVE[[Live monitor --live:<br/>transcript + agent tree]]
     ENG -. every tool call .-> EV[[Evidence store]]
     EV -. backs every .-> F[Finding]
 ```
