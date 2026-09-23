@@ -53,7 +53,11 @@ def execute_scan(store: PlatformStore, scan_id: str, target: str, scope_items: l
     from .. import coverage as _coverage
     store.update_scan(scan_id, status="running", started_at=time.time())
     try:
+        import os
         opts = dict(options or {})
+        # A hosted deployment can point every scan at a shared OOB collaborator.
+        if os.getenv("SENTARI_OOB_SERVICE"):
+            opts.setdefault("oob_service", os.environ["SENTARI_OOB_SERVICE"])
         phases = None
         if mode in _MODE_PHASES:
             phases = _MODE_PHASES[mode]
@@ -112,13 +116,38 @@ def make_submit(store: PlatformStore, executor: ThreadPoolExecutor,
 _run_scan = execute_scan
 
 
+class RateLimiter:
+    """Fixed-window per-key limiter (thread-safe). Keyed by token or client IP."""
+    def __init__(self, limit: int = 120, window: int = 60) -> None:
+        import threading as _t
+        self.limit = limit
+        self.window = window
+        self._hits: dict = {}
+        self._lock = _t.Lock()
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        cutoff = now - self.window
+        with self._lock:
+            hits = [t for t in self._hits.get(key, []) if t > cutoff]
+            if len(hits) >= self.limit:
+                self._hits[key] = hits
+                return False
+            hits.append(now)
+            self._hits[key] = hits
+            return True
+
+
 def dispatch(method: str, path: str, token: str | None, body: dict | None,
-             store: PlatformStore, submit) -> tuple[int, dict]:
+             store: PlatformStore, submit, limiter=None) -> tuple[int, dict]:
     """Pure request handler: returns (http_status, json_body)."""
     if method == "GET" and path == "/api/health":
         return 200, {"status": "ok", "service": "sentari"}
     if not path.startswith("/api/"):
         return 404, {"error": "not found"}
+
+    if limiter is not None and not limiter.allow(token or "anon"):
+        return 429, {"error": "rate limit exceeded; slow down"}
 
     user = store.user_by_token(token or "")
     if user is None:
@@ -188,7 +217,7 @@ def dispatch(method: str, path: str, token: str | None, body: dict | None,
     return 404, {"error": "not found"}
 
 
-def make_handler(store: PlatformStore, submit):
+def make_handler(store: PlatformStore, submit, limiter=None):
     class _Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):
             pass
@@ -206,7 +235,8 @@ def make_handler(store: PlatformStore, submit):
             self.wfile.write(data)
 
         def do_GET(self):
-            code, resp = dispatch("GET", self.path, self._token(), None, store, submit)
+            code, resp = dispatch("GET", self.path, self._token(), None, store,
+                                  submit, limiter)
             self._reply(code, resp)
 
         def do_POST(self):
@@ -216,11 +246,13 @@ def make_handler(store: PlatformStore, submit):
             except (ValueError, json.JSONDecodeError):
                 self._reply(400, {"error": "invalid JSON body"})
                 return
-            code, resp = dispatch("POST", self.path, self._token(), body, store, submit)
+            code, resp = dispatch("POST", self.path, self._token(), body, store,
+                                  submit, limiter)
             self._reply(code, resp)
 
         def do_DELETE(self):
-            code, resp = dispatch("DELETE", self.path, self._token(), None, store, submit)
+            code, resp = dispatch("DELETE", self.path, self._token(), None, store,
+                                  submit, limiter)
             self._reply(code, resp)
 
     return _Handler
@@ -250,15 +282,17 @@ def _scheduler_loop(store: PlatformStore, submit, stop, interval: int = 30) -> N
 
 
 def serve_api(db: str = "sentari-platform.db", host: str = "127.0.0.1",
-              port: int = 8700, workers: int = 4, celery: bool = False) -> None:
+              port: int = 8700, workers: int = 4, celery: bool = False,
+              rate_limit: int = 120) -> None:
     import threading
     store = PlatformStore(db)
     executor = ThreadPoolExecutor(max_workers=workers)
     submit = make_submit(store, executor, db_path=db, use_celery=celery)
+    limiter = RateLimiter(limit=rate_limit, window=60) if rate_limit else None
     stop = threading.Event()
     threading.Thread(target=_scheduler_loop, args=(store, submit, stop),
                      daemon=True).start()
-    httpd = ThreadingHTTPServer((host, port), make_handler(store, submit))
+    httpd = ThreadingHTTPServer((host, port), make_handler(store, submit, limiter))
     print(f"Sentari platform API on http://{host}:{port}  (db={db})")
     print("Auth: Authorization: Bearer <token>. Create users with: sentari api-user add <email>")
     print("Scheduler active: due schedules run automatically.")

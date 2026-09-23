@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-274%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-280%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -407,6 +407,8 @@ sentari --list-phases
 | `sentari serve-api` | Multi-tenant platform API: user accounts + API tokens, tenant-isolated scans (submit/list/get). |
 | `sentari api-user add <email>` / `list` | Create/list platform users and mint their API token. |
 | `sentari pr-review SOURCE --base REF` | SAST on a PR's changed files only; `--post PR` comments results via `gh`. Exits non-zero on a high finding (CI gate). |
+| `sentari serve-oob` | Run a shared, hosted OOB collaborator (callbacks + `/api/hits/{token}`) for OOB confirmation across scans/tenants. |
+| `--oob-service URL` | Use a shared hosted OOB collaborator instead of a local listener. |
 | `-m` / `--mode {quick,standard,deep}` | Depth preset: quick (recon+headers), standard (+vuln+API), deep (full pipeline). |
 | `--instruction TEXT` / `--instruction-file FILE` | Guidance/briefing for the run (sets the agent goal, kept with the run). |
 | `--target-list FILE` | Assess many targets (one per line) via `--graph`. |
@@ -523,7 +525,16 @@ curl -s -X POST http://127.0.0.1:8700/api/scans \
   -d '{"target":"https://app.example.com","scope":["app.example.com"],"authorized":true,"mode":"deep"}'
 ```
 
-Tokens are stored only as SHA-256 hashes, and the authorization attestation (`authorized: true`) is required per scan, so the platform never loosens the scope or evidence rules. Bind it to localhost and put it behind TLS/a reverse proxy for real use.
+Tokens are stored only as SHA-256 hashes, the authorization attestation (`authorized: true`) is required per scan, and the API rate-limits per token (`--rate-limit`, default 120/min), so the platform never loosens the scope or evidence rules. The store is SQLite by default or **PostgreSQL** when `--db` is a `postgres://` DSN (so workers on different machines share one store). Bind the API to localhost and put it behind TLS / a reverse proxy for real exposure:
+
+```nginx
+# nginx: terminate TLS and proxy to the API on localhost
+location /api/ { proxy_pass http://127.0.0.1:8700; proxy_set_header Authorization $http_authorization; }
+```
+
+**Shared OOB collaborator:** for out-of-band confirmation across many scans/tenants without opening a port per scan, run `sentari serve-oob` (a persistent collaborator: targets call back to `/<token>`, scans poll `/api/hits/<token>`) and point scans at it with `--oob-service http://<public-host>:8611` (or the `SENTARI_OOB_SERVICE` env for the platform workers).
+
+**Full stack:** `docker compose up --build` starts the platform API, Celery workers, the OOB collaborator, Redis, and the dashboard; set `SENTARI_OOB_PUBLIC_URL` in `.env` to your public `http://host:8611` so external callbacks resolve. Create a user with `docker compose run --rm platform-api api-user add you@example.com --db /data/sentari-platform.db`.
 
 **Horizontal scale:** by default scans run in the API's local thread pool. With `sentari serve-api --celery`, scans are instead queued to Celery workers (`celery -A sentari.tasks worker`) that share the same platform DB path, so the API stays responsive and scans run across a worker pool. The scheduler and the same evidence-first engine are used either way.
 

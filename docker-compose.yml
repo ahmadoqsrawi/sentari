@@ -1,17 +1,17 @@
-# Local distributed stack: Redis broker + Celery worker + read-only dashboard.
-# The image (see Dockerfile) ships every scanner, so a containerized run has the
-# full tool set with no host setup.
+# Sentari stack: the multi-tenant platform API, Celery workers, a shared OOB
+# collaborator, Redis, and the read-only dashboard. The image (see Dockerfile)
+# ships every scanner, so a containerized run has the full tool set, no host
+# setup.
 #
-# Bring it up:  docker compose up --build
-# Enqueue a scan into the worker (external target, public OOB):
-#   docker compose run --rm worker-cli https://app.example.com \
-#     --scope app.example.com --authorized --enqueue --db /data/sentari.db \
-#     --oob-host <YOUR_PUBLIC_IP> --oob-port 8611
-# Then open http://localhost:8600
+# Bring it up:   docker compose up --build
+# Create a user: docker compose run --rm platform-api api-user add you@example.com \
+#                  --db /data/sentari-platform.db
+# Then POST scans to http://localhost:8700/api/scans with the printed Bearer token.
 #
-# For OOB callbacks (SSRF/XXE/command injection) to reach the worker from an
-# external target, port 8611 is published below; also open it in the host
-# firewall and your cloud security group, and pass the public IP as --oob-host.
+# OOB callbacks (SSRF/XXE/command injection) from EXTERNAL targets must reach the
+# collaborator at a public URL. Set SENTARI_OOB_PUBLIC_URL in .env to
+# http://<your-public-host-or-ip>:8611 and open that port in the host firewall and
+# your cloud security group. If unset, scans use a local listener (localhost only).
 services:
   redis:
     image: redis:7-alpine
@@ -22,14 +22,36 @@ services:
       timeout: 3s
       retries: 5
 
+  oob:
+    build: .
+    restart: unless-stopped
+    command: ["serve-oob", "--host", "0.0.0.0", "--port", "8611"]
+    ports:
+      - "8611:8611"   # shared OOB collaborator; open this port to the internet
+
+  platform-api:
+    build: .
+    restart: unless-stopped
+    command: ["serve-api", "--celery", "--db", "/data/sentari-platform.db",
+              "--host", "0.0.0.0", "--port", "8700"]
+    environment:
+      SENTARI_BROKER_URL: redis://redis:6379/0
+      SENTARI_OOB_SERVICE: ${SENTARI_OOB_PUBLIC_URL:-}
+    ports:
+      - "8700:8700"
+    volumes:
+      - data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
   worker:
     build: .
     restart: unless-stopped
     entrypoint: ["celery", "-A", "sentari.tasks", "worker", "--loglevel=info"]
     environment:
       SENTARI_BROKER_URL: redis://redis:6379/0
-    ports:
-      - "8611:8611"   # OOB callback listener (use --oob-port 8611)
+      SENTARI_OOB_SERVICE: ${SENTARI_OOB_PUBLIC_URL:-}
     volumes:
       - data:/data
     depends_on:
@@ -47,7 +69,7 @@ services:
     depends_on:
       - redis
 
-  # helper for enqueuing scans (same image, default sentari entrypoint)
+  # helper for enqueuing dashboard-style scans (same image, default entrypoint)
   worker-cli:
     build: .
     profiles: ["cli"]

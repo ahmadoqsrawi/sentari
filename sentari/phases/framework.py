@@ -92,10 +92,7 @@ class FrameworkPhase(Phase):
 
     def _next_image_ssrf(self, ctx, result, base):
         from .. import oob
-        oob_host = ctx.options.get("oob_host", "127.0.0.1")
-        oob_port = int(ctx.options.get("oob_port", 0))
-        oob_bind = ctx.options.get("oob_bind")
-        with oob.OOBListener(host=oob_host, port=oob_port, bind=oob_bind) as listener:
+        with oob.make(ctx.options) as listener:
             token = listener.token()
             url = base + "/_next/image?" + urlencode(
                 {"url": listener.url(token), "w": "64", "q": "75"})

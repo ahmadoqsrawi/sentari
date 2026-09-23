@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.31.0"
+__version__ = "0.32.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -156,6 +156,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--oob-port", type=int, default=0,
                    help="Fixed port for the OOB callback listener, so you can open it in the "
                         "firewall (default 0: a random free port, fine only for local targets).")
+    p.add_argument("--oob-service", metavar="URL",
+                   help="Use a shared hosted OOB collaborator (see `sentari serve-oob`) "
+                        "instead of a local listener; callbacks land there.")
     p.add_argument("--race-url", metavar="URL",
                    help="Fire concurrent requests at this URL to test for race conditions.")
     p.add_argument("--race-count", type=int, default=20, help="Concurrent requests for --race-url.")
@@ -420,9 +423,12 @@ def _serve_api(argv: list[str]) -> int:
     ap.add_argument("--celery", action="store_true",
                     help="Queue scans to Celery workers (must share this --db path) "
                          "instead of the local thread pool.")
+    ap.add_argument("--rate-limit", type=int, default=120,
+                    help="Max requests per token per minute (0 disables; default 120).")
     a = ap.parse_args(argv)
     from .platform.api import serve_api
-    serve_api(db=a.db, host=a.host, port=a.port, workers=a.workers, celery=a.celery)
+    serve_api(db=a.db, host=a.host, port=a.port, workers=a.workers, celery=a.celery,
+              rate_limit=a.rate_limit)
     return 0
 
 
@@ -460,6 +466,18 @@ def _api_user(argv: list[str]) -> int:
         return 0
     finally:
         store.close()
+
+
+def _serve_oob(argv: list[str]) -> int:
+    """`sentari serve-oob` - a shared, hosted OOB collaborator service."""
+    import argparse as _ap
+    ap = _ap.ArgumentParser(prog="sentari serve-oob")
+    ap.add_argument("--host", default="0.0.0.0")
+    ap.add_argument("--port", type=int, default=8611)
+    a = ap.parse_args(argv)
+    from .oob import serve_oob
+    serve_oob(host=a.host, port=a.port)
+    return 0
 
 
 def _pr_review(argv: list[str]) -> int:
@@ -562,6 +580,8 @@ def main(argv: list[str] | None = None) -> int:
         return _api_user(argv[1:])
     if argv and argv[0] == "pr-review":
         return _pr_review(argv[1:])
+    if argv and argv[0] == "serve-oob":
+        return _serve_oob(argv[1:])
 
     args = build_parser().parse_args(argv)
 
@@ -865,6 +885,8 @@ def main(argv: list[str] | None = None) -> int:
         options["oob_port"] = args.oob_port
         if args.oob_bind:
             options["oob_bind"] = args.oob_bind
+        if args.oob_service:
+            options["oob_service"] = args.oob_service
         if args.race_url:
             options["race_url"] = args.race_url
             options["race_count"] = args.race_count
@@ -900,6 +922,8 @@ def main(argv: list[str] | None = None) -> int:
         options.setdefault("oob_port", args.oob_port)
         if args.oob_bind:
             options.setdefault("oob_bind", args.oob_bind)
+        if args.oob_service:
+            options.setdefault("oob_service", args.oob_service)
     if args.header:
         from . import nethdr
         options["extra_headers"] = nethdr.current()
@@ -958,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
         options.setdefault("oob_port", args.oob_port)
         if args.oob_bind:
             options.setdefault("oob_bind", args.oob_bind)
+        if args.oob_service:
+            options.setdefault("oob_service", args.oob_service)
         options["browser"] = True
         options["api_tests"] = True
         options["framework"] = True

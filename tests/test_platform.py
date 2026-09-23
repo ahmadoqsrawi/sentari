@@ -8,7 +8,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer
 
-from sentari.platform.api import (dispatch, make_handler, make_submit,
+from sentari.platform.api import (RateLimiter, dispatch, make_handler, make_submit,
                                   parse_interval, run_due_schedules)
 from sentari.platform.store import PlatformStore, hash_token
 
@@ -130,6 +130,33 @@ class TestSchedules(unittest.TestCase):
         sid = self.s.add_schedule(self.alice.id, "x.com", ["x.com"], 3600)
         self.assertTrue(self.s.delete_schedule(self.alice.id, sid))
         self.assertFalse(self.s.delete_schedule(self.bob.id, sid))  # already gone / not owner
+
+
+class TestRateLimit(unittest.TestCase):
+    def test_limiter_blocks_after_limit(self):
+        rl = RateLimiter(limit=2, window=60)
+        self.assertTrue(rl.allow("k"))
+        self.assertTrue(rl.allow("k"))
+        self.assertFalse(rl.allow("k"))          # third is blocked
+        self.assertTrue(rl.allow("other"))       # a different key is independent
+
+    def test_dispatch_returns_429_when_limited(self):
+        s = PlatformStore(tempfile.mktemp(suffix=".db"))
+        self.addCleanup(s.close)
+        _, t = s.add_user("rl@x.com")
+        rl = RateLimiter(limit=1, window=60)
+        c1, _ = dispatch("GET", "/api/scans", t, None, s, lambda *a: None, rl)
+        c2, r2 = dispatch("GET", "/api/scans", t, None, s, lambda *a: None, rl)
+        self.assertEqual(c1, 200)
+        self.assertEqual(c2, 429)
+
+    def test_health_not_rate_limited(self):
+        s = PlatformStore(tempfile.mktemp(suffix=".db"))
+        self.addCleanup(s.close)
+        rl = RateLimiter(limit=1, window=60)
+        for _ in range(3):
+            code, _ = dispatch("GET", "/api/health", None, None, s, lambda *a: None, rl)
+            self.assertEqual(code, 200)
 
 
 class TestCeleryExecution(unittest.TestCase):

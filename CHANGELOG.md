@@ -4,6 +4,14 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.32.0] - 2026-09-23
+
+### Added
+- PostgreSQL backend for the platform store: `serve-api --db postgres://...` (needs psycopg2) so Celery workers on different machines share one store instead of a common volume; SQLite remains the default.
+- API rate limiting: per-token fixed-window limiter (`serve-api --rate-limit`, default 120/min); `/api/health` is exempt.
+- Shared hosted OOB collaborator: `sentari serve-oob` runs a persistent service (targets call back to `/<token>`, scans poll `/api/hits/<token>`); `--oob-service URL` (or `SENTARI_OOB_SERVICE`) makes scans use it instead of a per-scan local listener. Injection and framework phases now go through an OOB factory that picks local or hosted.
+- Compose stack now runs the platform API, Celery workers, the OOB collaborator, Redis, and the dashboard as first-class services; `SENTARI_OOB_PUBLIC_URL` wires external callbacks.
+
 ## [0.31.0] - 2026-09-23
 
 ### Added
