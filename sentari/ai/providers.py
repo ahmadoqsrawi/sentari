@@ -33,6 +33,24 @@ _PRICES = {
 }
 
 
+# Cumulative real spend for this process, so a run can enforce a budget even
+# when the live event bus is not attached.
+_SPENT = {"cost": 0.0, "tokens": 0}
+
+
+def spent_cost() -> float:
+    return _SPENT["cost"]
+
+
+def spent_tokens() -> int:
+    return _SPENT["tokens"]
+
+
+def reset_spend() -> None:
+    _SPENT["cost"] = 0.0
+    _SPENT["tokens"] = 0
+
+
 def _emit_usage(model: str, resp) -> None:
     """Publish real token usage from an SDK response to the event bus."""
     from .. import events
@@ -53,6 +71,9 @@ def _emit_usage(model: str, resp) -> None:
         if model and k in model:
             cost = round(prompt / 1e6 * pin + completion / 1e6 * pout, 4)
             break
+    _SPENT["tokens"] += total
+    if cost:
+        _SPENT["cost"] += cost
     events.emit("usage", model or "", f"+{total} tok", prompt=prompt,
                 completion=completion, total=total, cost=cost)
 

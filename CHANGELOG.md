@@ -4,6 +4,16 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.27.0] - 2026-09-23
+
+### Added
+- `sentari view [RUN]`: open a run (a JSON file, a runs directory, or --db) in the browser, where results can be selected and copied freely.
+- `sentari completions <bash|zsh>`: print a shell tab-completion script.
+- `-m/--mode {quick,standard,deep}`: depth presets (quick = recon+headers for CI; standard = +vuln+API; deep = full pipeline incl. injection/framework/browser).
+- `--instruction TEXT` / `--instruction-file FILE`: guidance/briefing for the run (sets the agent goal).
+- `--target-list FILE`: assess many targets (one per line) via the graph.
+- `--max-budget USD`: stop cleanly once estimated LLM spend reaches a dollar cap (AI modes), using the real per-model token accounting.
+
 ## [0.26.0] - 2026-09-23
 
 ### Added

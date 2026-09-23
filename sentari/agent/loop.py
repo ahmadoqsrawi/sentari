@@ -52,8 +52,11 @@ def _result(disp: ToolDispatcher, runner: ToolRunner) -> PhaseResult:
 
 def run_agent(target: str, scope: Scope, authorized: bool, audit: AuditLog, provider,
               *, goal: Optional[str] = None, safe_mode: bool = True, timeout: int = 120,
-              max_steps: int = 14, verify: bool = True) -> AgentRun:
+              max_steps: int = 14, verify: bool = True,
+              max_budget: Optional[float] = None) -> AgentRun:
     authorize(target, scope, authorized, audit)
+    from ..ai import providers as _providers
+    _providers.reset_spend()
     runner = ToolRunner(timeout)
     disp = ToolDispatcher(runner, target, safe_mode)
     out = AgentRun(provider=getattr(provider, "name", "none"))
@@ -70,12 +73,14 @@ def run_agent(target: str, scope: Scope, authorized: bool, audit: AuditLog, prov
 
     if provider.supports_tools():
         try:
-            _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out)
+            _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out,
+                        max_budget)
         except Exception as e:
             out.note = f"native tool-calling failed ({e}); used the JSON protocol instead."
-            _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out)
+            _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out,
+                      max_budget)
     else:
-        _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out)
+        _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out, max_budget)
 
     if verify and disp.findings:
         _verify(provider, disp, runner, audit, target)
@@ -83,12 +88,28 @@ def run_agent(target: str, scope: Scope, authorized: bool, audit: AuditLog, prov
     return out
 
 
-def _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out) -> None:
+def _over_budget(max_budget, out) -> bool:
+    if not max_budget:
+        return False
+    from ..ai import providers as _providers
+    if _providers.spent_cost() >= max_budget:
+        from .. import events
+        note = f"budget reached (est. ${_providers.spent_cost():.4f} >= ${max_budget})"
+        out.note = ((out.note + "; ") if out.note else "") + note
+        events.emit("note", "budget", note)
+        return True
+    return False
+
+
+def _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out,
+              max_budget=None) -> None:
     """Provider-agnostic loop: the model returns a JSON action each step."""
     convo: list[str] = []
     if goal:
         convo.append(f"Goal: {goal}")
     for step in range(1, max_steps + 1):
+        if _over_budget(max_budget, out):
+            break
         user = "\n".join(convo[-30:]) + "\n\nNext action as JSON:"
         try:
             raw = provider.complete(_system(safe_mode), user, max_tokens=400)
@@ -111,7 +132,8 @@ def _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out) ->
         convo.append(f"[{step}] {tool}({json.dumps(args)}) -> {obs}")
 
 
-def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out) -> None:
+def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out,
+                max_budget=None) -> None:
     """Native function-calling loop (OpenAI / Anthropic tool APIs)."""
     from .schema import OPENAI_TOOLS
     system = _system(safe_mode)
@@ -120,6 +142,8 @@ def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out) 
                             "Assess the target using the tools. Call finish when done."}]
     from .. import events
     for step in range(1, max_steps + 1):
+        if _over_budget(max_budget, out):
+            break
         turn = provider.tool_turn(system, messages, OPENAI_TOOLS, max_tokens=800)
         if turn.get("text"):
             events.emit("thinking", "agent", str(turn["text"])[:200])

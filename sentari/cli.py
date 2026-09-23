@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.26.0"
+__version__ = "0.27.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,6 +29,19 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Attest you have explicit written authorization to test the target.")
     p.add_argument("--phases", default="all",
                    help="Comma-separated phase names to run, or 'all' (default).")
+    p.add_argument("-m", "--mode", choices=["quick", "standard", "deep"],
+                   help="Depth preset: quick (recon+headers, CI), standard (+vuln+API), "
+                        "deep (full pipeline incl. injection/framework/browser).")
+    p.add_argument("--instruction", metavar="TEXT",
+                   help="Inline guidance for the run (focus areas, scope notes); sets the "
+                        "agent goal and is recorded with the run.")
+    p.add_argument("--instruction-file", metavar="FILE",
+                   help="Read --instruction guidance from a file (for long briefings).")
+    p.add_argument("--target-list", metavar="FILE",
+                   help="Read targets (one per line) from a file; all are assessed via --graph.")
+    p.add_argument("--max-budget", type=float, metavar="USD",
+                   help="Stop cleanly once estimated LLM spend reaches this many dollars "
+                        "(AI modes: --agent/--autopilot).")
     p.add_argument("--list-phases", action="store_true", help="List available phases and exit.")
     p.add_argument("--code-review", metavar="PATH",
                    help="Workflow preset: source-code vulnerability review (SAST over PATH, "
@@ -341,11 +354,109 @@ def _expand_presets(args) -> None:
             args.access_control = True
 
 
+def _view(argv: list[str]) -> int:
+    """`sentari view [RUN]` - open a run in the browser (select/copy freely)."""
+    import argparse as _ap
+    import threading
+    import webbrowser
+    vp = _ap.ArgumentParser(prog="sentari view")
+    vp.add_argument("run", nargs="?", help="A run .json file, a runs directory, or a run name.")
+    vp.add_argument("--runs-dir", default="runs", help="Directory of saved runs (default runs).")
+    vp.add_argument("--db", metavar="DSN", help="Read runs from a DB instead.")
+    vp.add_argument("--port", type=int, default=8600)
+    vp.add_argument("--host", default="127.0.0.1")
+    vp.add_argument("--no-open", action="store_true", help="Do not auto-open the browser.")
+    a = vp.parse_args(argv)
+
+    runs_dir, db = a.runs_dir, a.db
+    if a.run and not db:
+        rp = Path(a.run)
+        if rp.is_file():
+            runs_dir = str(rp.parent)     # serve the folder that holds this run
+        elif rp.is_dir():
+            runs_dir = str(rp)
+        else:
+            print(f"note: {a.run!r} is not a file or directory; using --runs-dir {runs_dir}",
+                  file=sys.stderr)
+
+    url = f"http://{a.host}:{a.port}"
+    if not a.no_open:
+        threading.Timer(1.2, lambda: webbrowser.open(url)).start()
+    print(f"Opening {url} in your browser (select and copy anything). Ctrl-C to stop.")
+    from .web import serve
+    serve(runs_dir=runs_dir, port=a.port, host=a.host, db=db)
+    return 0
+
+
+def _completions(argv: list[str]) -> int:
+    """`sentari completions <bash|zsh>` - print a shell tab-completion script."""
+    shell = (argv[0] if argv else "bash").lower()
+    opts = sorted({o for a in build_parser()._actions for o in a.option_strings})
+    words = " ".join(opts + ["wizard", "view", "completions"])
+    if shell == "zsh":
+        print("#compdef sentari\n_sentari(){ _arguments '*: :(" + words + ")' }\n"
+              "compdef _sentari sentari")
+    else:
+        print("# bash completion for sentari. Add to ~/.bashrc:\n"
+              "#   source <(sentari completions bash)\n"
+              "_sentari(){ local cur=\"${COMP_WORDS[COMP_CWORD]}\";"
+              f" COMPREPLY=( $(compgen -W \"{words}\" -- \"$cur\") ); }}\n"
+              "complete -F _sentari sentari")
+    return 0
+
+
+def _shape_run_args(args):
+    """Apply --instruction[-file], --mode, and --target-list to args in place.
+
+    Returns an int exit code on error, or None to continue. Kept separate from
+    main() so it is testable without running a scan."""
+    if args.instruction_file:
+        try:
+            args.instruction = Path(args.instruction_file).read_text(encoding="utf-8")
+        except OSError as e:
+            print(f"error: could not read --instruction-file: {e}", file=sys.stderr)
+            return 2
+    if args.instruction and not args.goal:
+        args.goal = args.instruction
+
+    if args.mode == "quick" and args.phases == "all":
+        args.phases = "osint,recon,scanning"
+    elif args.mode == "standard" and args.phases == "all":
+        args.phases = "osint,recon,scanning,vuln,api"
+        args.api_tests = True
+    elif args.mode == "deep":
+        args.api_tests = True
+        args.injection = True
+        args.framework = True
+        args.browser = True
+        if args.identity:
+            args.access_control = True
+
+    if args.target_list:
+        try:
+            tl = [ln.strip() for ln in Path(args.target_list).read_text(
+                encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")]
+        except OSError as e:
+            print(f"error: could not read --target-list: {e}", file=sys.stderr)
+            return 2
+        if tl:
+            args.graph = True
+            if not args.target:
+                args.target = tl[0]
+                tl = tl[1:]
+            args.graph_target = list(args.graph_target) + tl
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "wizard":
         from . import wizard
         return wizard.run(argv[1:])
+    if argv and argv[0] == "view":
+        return _view(argv[1:])
+    if argv and argv[0] == "completions":
+        return _completions(argv[1:])
 
     args = build_parser().parse_args(argv)
 
@@ -417,6 +528,10 @@ def main(argv: list[str] | None = None) -> int:
         args.browser = True
         if args.identity:
             args.access_control = True
+
+    rc = _shape_run_args(args)
+    if rc is not None:
+        return rc
 
     if args.header:
         from . import nethdr
@@ -844,7 +959,7 @@ def main(argv: list[str] | None = None) -> int:
             ar = _maybe_live(lambda: run_agent(
                 args.target, scope, args.authorized, audit, provider,
                 goal=args.goal, safe_mode=not args.no_safe_mode, timeout=args.timeout,
-                max_steps=args.agent_steps,
+                max_steps=args.agent_steps, max_budget=args.max_budget,
             ))
             results = ar.results
             if not args.no_compliance:

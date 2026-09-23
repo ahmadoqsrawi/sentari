@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-236%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-247%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -401,7 +401,13 @@ sentari --list-phases
 | `--agent` / `--goal` | Full AI agent: the model calls tools directly, findings stay evidence-anchored. |
 | `--ai-provider` / `--ai-model` / `--ai-base-url` | Choose the provider and model. |
 | `--serve` | Start the read-only web dashboard instead of scanning. |
+| `sentari view [RUN]` | Open a run in the browser (select and copy anything); serves a run file, directory, or `--db`. |
 | `--tui` (+ `--json`/`--runs-dir`/`--db`) | Browse results in an interactive terminal viewer. |
+| `sentari completions <bash\|zsh>` | Print a shell tab-completion script. |
+| `-m` / `--mode {quick,standard,deep}` | Depth preset: quick (recon+headers), standard (+vuln+API), deep (full pipeline). |
+| `--instruction TEXT` / `--instruction-file FILE` | Guidance/briefing for the run (sets the agent goal, kept with the run). |
+| `--target-list FILE` | Assess many targets (one per line) via `--graph`. |
+| `--max-budget USD` | Stop cleanly once estimated LLM spend reaches this many dollars (AI modes). |
 | `--siem-url` / `--siem-type` | Ship findings to a SIEM (webhook, splunk, elasticsearch, syslog). |
 | `--list-models` | List known AI models per provider and exit. |
 | `--no-anomaly` | Do not flag unusual findings for manual review. |
