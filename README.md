@@ -151,19 +151,22 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 - The host is fixed and arguments are validated, so an injected instruction in a target's response cannot redirect the host or run an arbitrary command
 - Uses **native function-calling** on providers that support it (OpenAI and Anthropic tool APIs), and falls back to a provider-agnostic JSON protocol otherwise
 - `--goal "focus on the API"` gives the agent a natural-language objective; with no model it runs a fixed recon sequence
+- **Multi-agent orchestration** with `--agent --threat-model`: a root model plans, then dispatches each assessor (recon, known-vuln, auth/API, injection, framework, client-side, and authorization when credentials are given) as its own reasoning sub-agent, carrying context forward; `--max-budget` caps total spend and `--live` streams every agent's thinking into an agent tree
 
 ### 📋 Compliance mapping
 - Tags findings with OWASP Top 10 (2021), CWE, and NIST 800-53 references
 - Shown in the console, the HTML report, and the JSON output
 
 ### 📊 Reporting and retest
-- Self-contained HTML report with each finding linked to its evidence, plus JSON
-- Retest diffs a fresh scan against a prior run and marks each item fixed, still present, or new
+- Self-contained HTML report with each finding linked to its evidence, plus JSON, XML, PDF, **SARIF 2.1.0** (code scanning / CI), and an executive **Markdown report** (`--report`: summary, methodology, recommendations, coverage gaps, retest guidance)
+- The JSON carries the coverage map, confidence split, and tool-environment preflight alongside the findings
+- Retest diffs a fresh scan against a prior run and marks each item fixed, still present, or new; **`--run-name`/`--resume`** checkpoint a run and continue it after an interruption
 
 ### 🗄️ Persistence and interfaces
 - Run store in SQLite by default, or Postgres
-- Read-only executive web dashboard (KPI cards, severity and trend charts, risk matrix, compliance coverage) and REST API, bound to localhost by default
-- Optional Celery workers for distributed runs, with Docker, Compose, and Kubernetes manifests
+- Read-only executive web dashboard (KPI cards, severity and trend charts, risk matrix, compliance coverage), plus `sentari view` to open any run in the browser and copy freely
+- **Multi-tenant platform API** (`sentari serve-api`): per-user API tokens (SHA-256 hashed), tenant-isolated scans (`POST/GET /api/scans`), recurring **schedules**, per-token rate limiting, and Celery-backed distributed execution; **PR reviews** (`sentari pr-review`) and a shared **OOB collaborator** (`sentari serve-oob`) round it out
+- Optional Celery workers for distributed runs, with Docker, Compose (API + workers + OOB + Redis + dashboard), and Kubernetes manifests
 
 ### 🔌 Integrations and observability
 - **SIEM export**: ship findings and a run summary to Splunk (HEC), Elasticsearch, syslog, or a generic webhook
@@ -214,37 +217,36 @@ Each package has one job:
 
 | Package | Responsibility |
 |---------|----------------|
-| `models` | `Evidence`, `Finding`, `PhaseResult`; a finding cannot exist without evidence |
-| `runner` | Runs external tools and built-in probes, captures each as evidence |
-| `authorization` | Scope allowlist, attestation gate, audit log |
-| `engine` | The one `run_assessment` path shared by the CLI and workers |
-| `phases/` | `osint`, `recon`, `scanning`, `vuln`, `verify`, and gated `exploit` / `postexploit` |
-| `threatintel` / `classify` | CISA KEV correlation; rule-based service classification |
-| `openvas` / `nexpose` / `privesc` | External scanner connectors; SSH privilege-escalation enumeration |
-| `openapi` / `browser` / `sandbox` | API-spec ingestion; headless-browser DAST; Docker sandbox for gated tools |
-| `jwt_audit` / `sast` / `proxy` | Offline JWT auditing; semgrep SAST parsing; mitmproxy capture analysis |
-| `cloudaudit` / `pocrunner` / `graph` | Prowler misconfig parsing; sandboxed PoC runtime; multi-agent graph orchestration |
-| `accesscontrol` | Broken-access-control / IDOR by comparing identities |
-| `oob` / `injection` | Out-of-band listener; SSRF/XXE/cmdi/SSTI/NoSQLi/mass-assignment logic |
-| `deserial` / `sessionfix` / `workflow` | Deserialization detection; session-fixation check; business-logic workflow replay |
-| `tamper` | Request tamper/replay + response diff; parameter fuzzing |
-| `autofix` / `patch` | Remediation guide and draft PR; AI code-fix diffs applied only by explicit user action |
-| `ai/osint` | AI-proposed subdomains (DNS-confirmed) and a grounded OSINT summary |
+| `models` | `Evidence`, `Finding`, `PhaseResult` (+ `from_dict`); a finding cannot exist without evidence |
+| `runner` | Runs external tools (via `Popen`, cancel/timeout aware) and built-in probes as evidence; env-independent tool discovery |
+| `authorization` | Scope allowlist + off-limits exclusions, attestation gate, audit log |
+| `engine` | The one `run_assessment` path (checkpoint/resume, cancel) shared by the CLI and workers |
+| `phases/` | `osint`, `recon`, `scanning`, `sast`, `cloud-audit`, `vuln`, `api`, `access-control`, `injection`, `framework`, `workflow`, `proxy`, `browser`, `verification`; gated `exploit` / `postexploit` |
+| `oob` / `injection` / `deserial` / `sessionfix` / `workflow` | OOB listener + hosted collaborator; SSRF/XXE/cmdi/SSTI/NoSQLi/mass-assignment; deserialization; session fixation; workflow replay |
+| `accesscontrol` / `jwt_audit` / `openapi` | Broken-access-control / IDOR; offline JWT audit; API-spec ingestion |
+| `browser` / `loginrec` / `sandbox` / `pocrunner` | Headless-browser DAST; browser login recording; Docker sandbox; sandboxed PoC runtime |
+| `sast` / `prreview` / `repo` | semgrep SAST parsing; PR diff review; git-repo cloning for code review |
+| `threatintel` / `classify` / `cvss` | CISA KEV correlation; service classification; CVSS scoring |
+| `confidence` / `coverage` | Confirmed-vs-reported tagging; coverage map + gaps |
 | `prioritize` / `correlation` / `trends` | Business impact and risk matrix; cross-asset and over-time views |
-| `parsers/` | Tool-output parsers (for example, `nmap` XML) |
-| `compliance` | OWASP / CWE / NIST tagging |
-| `ai/` | Providers and the grounded analyst |
-| `reporting/` | Console and HTML output |
+| `compliance` / `anomaly` / `heuristics` | OWASP / CWE / NIST tagging; anomaly and heuristic manual-review candidates |
+| `ai/` / `autopilot` / `agent/` / `graph` / `threatmodel` / `orchestrator` | Providers + grounded analyst + token/cost; autopilot; tool-calling agent; multi-target graph; threat-model assessors; multi-agent LLM orchestration |
+| `openvas` / `nexpose` / `privesc` / `cloudaudit` | External scanner connectors; SSH privilege-escalation enumeration; Prowler misconfig |
+| `events` / `livetui` / `tui` | Live event bus; live monitor (`--live`); results terminal viewer (`--tui`) |
+| `nethdr` / `domainverify` / `preflight` / `runstate` / `spec` / `wizard` | Global headers; DNS-TXT domain verification; tool preflight; run checkpoints; pentest spec; setup wizard |
+| `tamper` / `autofix` / `patch` / `ai/osint` | Request tamper/replay + fuzz; remediation guide + draft PR; AI code-fix diffs (human-applied); AI-proposed (DNS-confirmed) subdomains |
+| `parsers/` / `compliance` | Tool-output parsers (e.g. `nmap` XML); OWASP / CWE / NIST tagging |
+| `reporting/` | Console, HTML, XML, PDF, SARIF, and narrative Markdown reports |
 | `retest` | Diff against a baseline |
-| `db/` | SQLite / Postgres run store |
-| `web/` | Read-only dashboard and REST API |
-| `tasks/` | Celery app and task |
+| `db/` / `web/` | SQLite / Postgres run store; read-only dashboard + REST API |
+| `tasks/` | Celery app + tasks (assessment, scheduled retest, platform scan) |
+| `platform/` | Multi-tenant control plane: users + API tokens, tenant-isolated scans, scheduling, rate limiting (`serve-api`) |
 
 ## 🚀 Quick start
 
 New here? The step-by-step, beginner-friendly guide with a required-vs-optional breakdown is in **[INSTALL.md](INSTALL.md)**.
 
-**Prerequisites:** Python 3.9+. Optional scanners (`nmap`, `nuclei`, `nikto`, `gobuster`/`ffuf`, `sqlmap`) add coverage; Sentari uses each when present and reports it as missing otherwise.
+**Prerequisites:** Python 3.9+. Optional scanners (`nmap`, `nuclei`, `httpx`, `subfinder`, `gobuster`/`ffuf`, `sqlmap`, `semgrep`) add coverage; Sentari uses each when present and reports it as missing otherwise. Run `sentari --preflight` to see which are installed, or use the Docker image, which ships them all.
 
 ```bash
 # install from source
@@ -278,16 +280,16 @@ sentari --web-pentest https://app.example.com --authorized \
 
 **Web App Pentest** walks five steps:
 
-1. **Target & APIs** — target URL and any OpenAPI/Swagger/Postman specs; optionally prove domain control by DNS TXT.
-2. **Scope** — attackable hosts/CIDRs and off-limits ones (never touched).
-3. **Repositories** — a git repo (GitHub/GitLab/Bitbucket) adds source review and deeper analysis; without one, testing is black-box.
-4. **Access** — test users (Sentari can record a browser login and capture the session cookie for you, or you paste an auth header) and custom headers (API keys, JWTs, WAF-bypass tokens) sent with every request.
-5. **Context** — instructions, focus areas, and reference docs.
+1. **Target & APIs**: target URL and any OpenAPI/Swagger/Postman specs; optionally prove domain control by DNS TXT.
+2. **Scope**: attackable hosts/CIDRs and off-limits ones (never touched).
+3. **Repositories**: a git repo (GitHub/GitLab/Bitbucket) adds source review and deeper analysis; without one, testing is black-box.
+4. **Access**: test users (Sentari can record a browser login and capture the session cookie for you, or you paste an auth header) and custom headers (API keys, JWTs, WAF-bypass tokens) sent with every request.
+5. **Context**: instructions, focus areas, and reference docs.
 
 **Code Review** is shorter and needs no live environment:
 
-1. **Source** — a git repo (GitHub/GitLab/Bitbucket) or a local path (an upload); it is cloned or read, scanned with SAST, and (with an AI key) given fix suggestions. Authorized by default, since it only reads source you can already access.
-2. **Context** — the threats to focus on, the parts to review, known issues, and reference docs.
+1. **Source**: a git repo (GitHub/GitLab/Bitbucket) or a local path (an upload); it is cloned or read, scanned with SAST, and (with an AI key) given fix suggestions. Authorized by default, since it only reads source you can already access.
+2. **Context**: the threats to focus on, the parts to review, known issues, and reference docs.
 
 Each wizard saves a reusable spec (`pentest.json` or `code-review.json`), so a scan is repeatable and schedulable:
 
@@ -365,7 +367,6 @@ sentari --list-phases
 | `--html` / `--json` / `--xml` / `--pdf` FILE | Write the report in that format (PDF needs reportlab). |
 | `--sarif FILE` | Write a SARIF 2.1.0 report (GitHub code scanning / CI / IDEs). |
 | `--report FILE` | Write an executive Markdown report (summary, methodology, recommendations, coverage gaps, retest guidance). |
-| `--preflight` | Report which external scanner tools are installed and found, then exit. |
 | `--cloud {aws,azure,gcp}` | List internet-facing assets in your cloud account and exit. |
 | `--asset-value {low,medium,high,critical}` | Asset criticality for business-impact scoring. |
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
@@ -549,23 +550,30 @@ location /api/ { proxy_pass http://127.0.0.1:8700; proxy_set_header Authorizatio
 
 ```
 sentari/
-├── cli.py            # argument parsing and output
-├── engine.py         # shared run_assessment path
+├── cli.py            # argument parsing, subcommands (wizard/view/serve-api/...), output
+├── engine.py         # shared run_assessment path (checkpoint/resume, cancel)
 ├── models.py         # Evidence / Finding / PhaseResult
 ├── runner.py         # tool + built-in probe execution -> evidence
-├── authorization.py  # scope, attestation, audit log
-├── compliance.py     # OWASP / CWE / NIST tagging
-├── concurrency.py    # thread pool for I/O-bound probes
-├── retest.py         # baseline diff
-├── phases/           # recon, scanning, vuln, verify
-├── parsers/          # nmap XML, ...
-├── reporting/        # console + HTML
-├── ai/               # providers + grounded analyst
-├── db/               # SQLite / Postgres store
+├── authorization.py  # scope + exclusions, attestation, audit log
+├── events.py         # in-process event bus for live progress
+├── livetui.py, tui.py# live monitor (--live); results viewer (--tui)
+├── orchestrator.py   # multi-agent LLM orchestration + agent-tree view
+├── threatmodel.py    # skill-scoped assessors
+├── confidence.py, coverage.py  # confirmed-vs-reported; coverage map + gaps
+├── wizard.py, spec.py, runstate.py, preflight.py  # setup wizard, spec, resume, preflight
+├── nethdr.py, domainverify.py, repo.py, loginrec.py, prreview.py  # intake + PR review
+├── phases/           # osint, recon, scanning, sast, vuln, api, access-control,
+│                     #   injection, framework, workflow, proxy, browser, verify (+ gated)
+├── ai/               # providers (+ token/cost) and grounded analyst; agent/, autopilot
+├── reporting/        # console, HTML, XML, PDF, SARIF, narrative
+├── db/               # SQLite / Postgres run store
 ├── web/              # read-only dashboard + REST API
-└── tasks/            # Celery app + task
+├── platform/         # multi-tenant control plane (serve-api): users, scans, schedules
+├── tasks/            # Celery app + tasks (assessment, scheduled retest, platform scan)
+└── parsers/          # tool-output parsers (nmap XML, ...)
 deploy/               # Dockerfile, docker-compose, k8s manifests
 docs/                 # C4 architecture documentation
+skills/               # Agent Skills (SKILL.md per capability)
 tests/                # unittest suite
 ```
 
