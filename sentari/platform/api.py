@@ -44,8 +44,10 @@ def parse_interval(value) -> int | None:
     return None
 
 
-def _run_scan(store: PlatformStore, scan_id: str, target: str, scope_items: list,
-              authorized: bool, options: dict, safe_mode: bool, mode: str | None) -> None:
+def execute_scan(store: PlatformStore, scan_id: str, target: str, scope_items: list,
+                 authorized: bool, options: dict, safe_mode: bool, mode: str | None) -> None:
+    """Run one scan through the engine and persist status/result to the store.
+    Called directly by the in-process pool and by the Celery worker task."""
     from ..authorization import AuditLog, AuthorizationError, Scope
     from ..engine import run_assessment
     from .. import coverage as _coverage
@@ -79,11 +81,35 @@ def _run_scan(store: PlatformStore, scan_id: str, target: str, scope_items: list
                           error=f"{type(e).__name__}: {e}")
 
 
-def make_submit(store: PlatformStore, executor: ThreadPoolExecutor):
+def make_submit(store: PlatformStore, executor: ThreadPoolExecutor,
+                db_path: str | None = None, use_celery: bool = False):
+    """Return a submit(...) that dispatches a scan.
+
+    With use_celery and a working Celery app, scans are queued to distributed
+    workers (which must share the platform DB path); otherwise they run in the
+    local thread pool. The signature is identical either way."""
+    celery_task = None
+    if use_celery and db_path:
+        try:
+            from ..tasks.app import HAVE_CELERY
+            from ..tasks.tasks import run_platform_scan_task
+            if HAVE_CELERY and run_platform_scan_task is not None:
+                celery_task = run_platform_scan_task
+        except Exception:
+            celery_task = None
+
     def submit(user_id, scan_id, target, scope, authorized, options, safe_mode, mode):
-        executor.submit(_run_scan, store, scan_id, target, scope, authorized,
-                        options, safe_mode, mode)
+        if celery_task is not None:
+            celery_task.delay(scan_id, target, scope, authorized, options,
+                              safe_mode, mode, db_path)
+        else:
+            executor.submit(execute_scan, store, scan_id, target, scope, authorized,
+                            options, safe_mode, mode)
     return submit
+
+
+# Back-compat alias.
+_run_scan = execute_scan
 
 
 def dispatch(method: str, path: str, token: str | None, body: dict | None,
@@ -224,11 +250,11 @@ def _scheduler_loop(store: PlatformStore, submit, stop, interval: int = 30) -> N
 
 
 def serve_api(db: str = "sentari-platform.db", host: str = "127.0.0.1",
-              port: int = 8700, workers: int = 4) -> None:
+              port: int = 8700, workers: int = 4, celery: bool = False) -> None:
     import threading
     store = PlatformStore(db)
     executor = ThreadPoolExecutor(max_workers=workers)
-    submit = make_submit(store, executor)
+    submit = make_submit(store, executor, db_path=db, use_celery=celery)
     stop = threading.Event()
     threading.Thread(target=_scheduler_loop, args=(store, submit, stop),
                      daemon=True).start()
@@ -236,6 +262,16 @@ def serve_api(db: str = "sentari-platform.db", host: str = "127.0.0.1",
     print(f"Sentari platform API on http://{host}:{port}  (db={db})")
     print("Auth: Authorization: Bearer <token>. Create users with: sentari api-user add <email>")
     print("Scheduler active: due schedules run automatically.")
+    if celery:
+        from ..tasks.app import HAVE_CELERY
+        if HAVE_CELERY:
+            print("Execution: Celery workers (they must share this DB path). "
+                  "Start one with: celery -A sentari.tasks worker")
+        else:
+            print("WARNING: --celery requested but Celery is not installed; "
+                  "falling back to the local thread pool.")
+    else:
+        print(f"Execution: local thread pool ({workers} workers).")
     if host not in ("127.0.0.1", "localhost"):
         print("WARNING: bound to a public interface. Put it behind TLS/a reverse proxy "
               "and restrict access; tokens are bearer credentials.")

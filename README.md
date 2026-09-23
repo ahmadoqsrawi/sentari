@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-272%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-274%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -524,6 +524,8 @@ curl -s -X POST http://127.0.0.1:8700/api/scans \
 ```
 
 Tokens are stored only as SHA-256 hashes, and the authorization attestation (`authorized: true`) is required per scan, so the platform never loosens the scope or evidence rules. Bind it to localhost and put it behind TLS/a reverse proxy for real use.
+
+**Horizontal scale:** by default scans run in the API's local thread pool. With `sentari serve-api --celery`, scans are instead queued to Celery workers (`celery -A sentari.tasks worker`) that share the same platform DB path, so the API stays responsive and scans run across a worker pool. The scheduler and the same evidence-first engine are used either way.
 
 **Scheduled scans** run automatically: `POST /api/schedules` with an `interval` (hourly/daily/weekly or seconds) registers a recurring, tenant-scoped scan that the server's scheduler fires when due.
 

@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.30.0"
+__version__ = "0.31.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -416,10 +416,13 @@ def _serve_api(argv: list[str]) -> int:
     ap.add_argument("--db", default="sentari-platform.db", help="Platform SQLite DB path.")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8700)
-    ap.add_argument("--workers", type=int, default=4, help="Concurrent scan workers.")
+    ap.add_argument("--workers", type=int, default=4, help="Local thread-pool workers.")
+    ap.add_argument("--celery", action="store_true",
+                    help="Queue scans to Celery workers (must share this --db path) "
+                         "instead of the local thread pool.")
     a = ap.parse_args(argv)
     from .platform.api import serve_api
-    serve_api(db=a.db, host=a.host, port=a.port, workers=a.workers)
+    serve_api(db=a.db, host=a.host, port=a.port, workers=a.workers, celery=a.celery)
     return 0
 
 

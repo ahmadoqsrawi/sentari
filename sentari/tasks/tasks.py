@@ -67,10 +67,29 @@ def scheduled_retest_sync() -> dict:
     return result
 
 
+def run_platform_scan_sync(scan_id: str, target: str, scope_items: list,
+                           authorized: bool, options: Optional[dict], safe_mode: bool,
+                           mode: Optional[str], db_path: str) -> dict:
+    """Worker-side execution of a platform scan: run the engine and persist the
+    status/result to the platform store at db_path (shared with the API)."""
+    from ..platform.api import execute_scan
+    from ..platform.store import PlatformStore
+    store = PlatformStore(db_path)
+    try:
+        execute_scan(store, scan_id, target, scope_items, authorized,
+                     options or {}, safe_mode, mode)
+    finally:
+        store.close()
+    return {"scan_id": scan_id}
+
+
 # Register as Celery tasks only when Celery is available.
 run_assessment_task = (
     app.task(name="sentari.run_assessment")(run_assessment_sync) if HAVE_CELERY else None
 )
 scheduled_retest_task = (
     app.task(name="sentari.scheduled_retest")(scheduled_retest_sync) if HAVE_CELERY else None
+)
+run_platform_scan_task = (
+    app.task(name="sentari.run_platform_scan")(run_platform_scan_sync) if HAVE_CELERY else None
 )

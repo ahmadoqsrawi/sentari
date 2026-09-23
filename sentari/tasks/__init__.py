@@ -2,6 +2,8 @@
 # Copyright (c) 2026 Ahmad <contact@ahmadoqsrawi.com>
 from .app import app, HAVE_CELERY
 from .tasks import (run_assessment_task, run_assessment_sync,
-                    scheduled_retest_task, scheduled_retest_sync)
+                    scheduled_retest_task, scheduled_retest_sync,
+                    run_platform_scan_task, run_platform_scan_sync)
 __all__ = ["app", "HAVE_CELERY", "run_assessment_task", "run_assessment_sync",
-           "scheduled_retest_task", "scheduled_retest_sync"]
+           "scheduled_retest_task", "scheduled_retest_sync",
+           "run_platform_scan_task", "run_platform_scan_sync"]

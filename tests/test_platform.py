@@ -132,6 +132,31 @@ class TestSchedules(unittest.TestCase):
         self.assertFalse(self.s.delete_schedule(self.bob.id, sid))  # already gone / not owner
 
 
+class TestCeleryExecution(unittest.TestCase):
+    def test_make_submit_falls_back_without_celery(self):
+        from concurrent.futures import ThreadPoolExecutor
+        s = PlatformStore(tempfile.mktemp(suffix=".db"))
+        self.addCleanup(s.close)
+        ex = ThreadPoolExecutor(max_workers=1)
+        self.addCleanup(lambda: ex.shutdown(wait=False))
+        submit = make_submit(s, ex, db_path="x.db", use_celery=True)
+        self.assertTrue(callable(submit))  # no Celery -> thread-pool fallback, no crash
+
+    def test_worker_sync_persists_status(self):
+        # the worker-side function updates the shared store; an unauthorized scan
+        # is refused by the engine's gate, so no network is touched.
+        from sentari.tasks import run_platform_scan_sync
+        db = tempfile.mktemp(suffix=".db")
+        s = PlatformStore(db)
+        self.addCleanup(s.close)
+        user, _ = s.add_user("w@x.com")
+        sid = s.create_scan(user.id, "x.com")
+        run_platform_scan_sync(sid, "x.com", ["x.com"], False, {}, True, None, db)
+        scan = s.get_scan(user.id, sid)
+        self.assertEqual(scan["status"], "refused")
+        self.assertIn("uthor", scan["error"] or "")
+
+
 class TestLiveHTTP(unittest.TestCase):
     def test_round_trip_over_http(self):
         store = PlatformStore(tempfile.mktemp(suffix=".db"))

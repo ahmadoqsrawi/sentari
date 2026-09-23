@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.31.0] - 2026-09-23
+
+### Added
+- Distributed execution for the platform: `sentari serve-api --celery` queues scans (and scheduled scans) to Celery workers instead of the local thread pool, so the API stays responsive and scans run across a worker pool. A new `sentari.run_platform_scan` Celery task runs the engine on a worker and persists status/result to the shared platform DB; without Celery installed it falls back to the thread pool automatically. Workers must share the platform DB path (same host/volume, or a shared filesystem).
+
 ## [0.30.0] - 2026-09-23
 
 ### Added
