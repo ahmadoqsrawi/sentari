@@ -4,6 +4,12 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.32.1] - 2026-09-23
+
+### Fixed
+- Wizard: removed the redundant "Code review only?" prompt in the Web App Pentest flow (the mode is already chosen by the top-level menu).
+- Wizard now offers to launch into the live monitor (`--live`) at Review & Launch, so a wizard-started run drops straight into the header/transcript/roster panels.
+
 ## [0.32.0] - 2026-09-23
 
 ### Added

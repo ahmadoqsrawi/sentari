@@ -53,18 +53,15 @@ def _ask_list(prompt: str) -> list[str]:
 
 
 def _step_target(spec: dict) -> None:
+    # mode is already chosen by the top-level menu; this step is the web-pentest target.
+    spec["mode"] = "web-pentest"
     print("\n── Step 1/5  Target & APIs " + "─" * 30)
-    spec["mode"] = "code-review" if _ask_yes(
-        "Code review only (static, no live target)?", False) else "web-pentest"
-    if spec["mode"] == "web-pentest":
-        spec["target"] = _ask("Target URL or host", spec.get("target", ""))
-        host = _host(spec["target"])
-        if host and _ask_yes(f"Verify you control {host} via DNS TXT now?", False):
-            _run_verify(host)
-        spec["api_specs"] = _ask_list("API specs (OpenAPI/Swagger/Postman files or URLs)")
-        _ask_oob(spec, host)
-    else:
-        spec["target"] = ""
+    spec["target"] = _ask("Target URL or host", spec.get("target", ""))
+    host = _host(spec["target"])
+    if host and _ask_yes(f"Verify you control {host} via DNS TXT now?", False):
+        _run_verify(host)
+    spec["api_specs"] = _ask_list("API specs (OpenAPI/Swagger/Postman files or URLs)")
+    _ask_oob(spec, host)
 
 
 def _is_external(host: str) -> bool:
@@ -321,9 +318,13 @@ def _launch(spec: dict, save_name: str) -> int:
             return 0
         spec["authorized"] = True
     spec_mod.save(save_name, spec)
+    live = _ask_yes("Launch in the live monitor (header, transcript, roster)?", True)
     print(f"\nSpec saved to {save_name}. Launching...\n")
     from .cli import main as cli_main
-    return cli_main(["--spec", save_name])
+    argv = ["--spec", save_name]
+    if live:
+        argv.append("--live")
+    return cli_main(argv)
 
 
 if __name__ == "__main__":  # pragma: no cover
