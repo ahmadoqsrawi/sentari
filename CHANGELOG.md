@@ -4,6 +4,12 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.28.0] - 2026-09-23
+
+### Added
+- Resume: `--run-name NAME` checkpoints a run's results after each phase, and `--resume NAME` continues it, skipping already-completed phases. Long or interrupted assessments (a WAF-fronted injection sweep, an overnight run) no longer start over. State lives under ~/.sentari/state/<name>/.
+- `from_dict` on Evidence/Finding/PhaseResult so a saved run rehydrates into real objects for resume and post-processing.
+
 ## [0.27.0] - 2026-09-23
 
 ### Added

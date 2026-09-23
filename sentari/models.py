@@ -54,6 +54,12 @@ class Evidence:
         cmd = " ".join(self.command)
         return f"[{self.tool}] `{cmd}` -> exit {self.returncode} ({self.duration_sec:.2f}s)"
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "Evidence":
+        fields = {"id", "command", "returncode", "stdout", "stderr", "started_at",
+                  "ended_at", "duration_sec", "tool", "cwd"}
+        return cls(**{k: v for k, v in d.items() if k in fields})
+
 
 @dataclass
 class Finding:
@@ -80,6 +86,12 @@ class Finding:
         if isinstance(self.severity, str):
             self.severity = Severity(self.severity)
 
+    @classmethod
+    def from_dict(cls, d: dict) -> "Finding":
+        fields = {"title", "severity", "description", "evidence_ids", "target", "phase",
+                  "id", "location", "recommendation", "references", "metadata", "created_at"}
+        return cls(**{k: v for k, v in d.items() if k in fields})
+
 
 @dataclass
 class PhaseResult:
@@ -98,3 +110,13 @@ class PhaseResult:
             {**asdict(f), "severity": f.severity.value} for f in self.findings
         ]
         return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "PhaseResult":
+        return cls(
+            phase=d["phase"], started_at=d["started_at"], ended_at=d["ended_at"],
+            findings=[Finding.from_dict(f) for f in d.get("findings", [])],
+            evidence=[Evidence.from_dict(e) for e in d.get("evidence", [])],
+            tools_available=d.get("tools_available", {}),
+            notes=list(d.get("notes", [])), error=d.get("error"),
+        )

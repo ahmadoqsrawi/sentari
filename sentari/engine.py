@@ -32,18 +32,43 @@ def run_assessment(
     apply_heuristics: bool = True,
     apply_threatintel: bool = True,
     asset_value: str = "medium",
+    run_name: Optional[str] = None,
+    resume: bool = False,
+    state_dir: Optional[str] = None,
 ) -> list[PhaseResult]:
     """Authorize the target, run the selected phases in order, tag compliance.
-    Raises AuthorizationError if the target is not authorized/in scope."""
+    Raises AuthorizationError if the target is not authorized/in scope.
+
+    When `run_name` is set, results are checkpointed after each phase; with
+    `resume`, already-completed phases are loaded and skipped."""
     from . import events
     authorize(target, scope, authorized, audit)
     events.emit("run_start", "engine", target)
+
+    completed: dict[str, PhaseResult] = {}
+    if run_name and resume:
+        from . import runstate
+        prev = runstate.load(run_name, state_dir)
+        if prev:
+            for rd in prev.get("results", []):
+                pr = PhaseResult.from_dict(rd)
+                completed[pr.phase] = pr
+            events.emit("note", "resume",
+                        f"resuming {run_name}: {len(completed)} phase(s) already complete")
 
     ctx = PhaseContext(target=target, runner=ToolRunner(timeout, dry_run),
                        safe_mode=safe_mode, options=options or {})
     results: list[PhaseResult] = []
     for cls in sorted(PHASES, key=lambda c: c.number):
         if phases is not None and cls.name not in phases:
+            continue
+        if cls.name in completed:
+            result = completed[cls.name]
+            ctx.shared.setdefault("prior_findings", []).extend(result.findings)
+            events.emit("phase_done", cls.name,
+                        f"{len(result.findings)} finding(s) [resumed]",
+                        findings=len(result.findings), error=bool(result.error))
+            results.append(result)
             continue
         audit.record("phase.start", target=target, phase=cls.name)
         events.emit("phase_start", cls.name, cls.description)
@@ -61,6 +86,9 @@ def run_assessment(
                     + (f"; error: {result.error}" if result.error else ""),
                     findings=len(result.findings), error=bool(result.error))
         results.append(result)
+        if run_name:
+            from . import runstate
+            runstate.save(run_name, {"results": [r.to_dict() for r in results]}, state_dir)
 
     # Gated exploitation runs only with safe mode off and an explicit, confirmed
     # request. It is not in the default phase list, so it never runs by accident.

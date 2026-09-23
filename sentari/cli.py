@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.27.0"
+__version__ = "0.28.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -42,6 +42,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-budget", type=float, metavar="USD",
                    help="Stop cleanly once estimated LLM spend reaches this many dollars "
                         "(AI modes: --agent/--autopilot).")
+    p.add_argument("--run-name", metavar="NAME",
+                   help="Name this run and checkpoint it after each phase (enables --resume).")
+    p.add_argument("--resume", metavar="NAME",
+                   help="Resume a checkpointed run by name: completed phases are skipped.")
     p.add_argument("--list-phases", action="store_true", help="List available phases and exit.")
     p.add_argument("--code-review", metavar="PATH",
                    help="Workflow preset: source-code vulnerability review (SAST over PATH, "
@@ -1000,12 +1004,14 @@ def main(argv: list[str] | None = None) -> int:
             audit.record("autopilot.done", target=args.target,
                          steps=len(ap.decisions), provider=ap.provider)
         else:
+            _run_name = args.resume or args.run_name
             results = _maybe_live(lambda: run_assessment(
                 args.target, scope, args.authorized, audit,
                 safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
                 dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
                 apply_anomaly=not args.no_anomaly, apply_heuristics=not args.no_heuristics,
                 apply_threatintel=not args.no_threatintel, asset_value=args.asset_value,
+                run_name=_run_name, resume=bool(args.resume),
             ))
     except AuthorizationError as e:
         print(f"REFUSED: {e}", file=sys.stderr)
