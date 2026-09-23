@@ -4,6 +4,16 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.24.0] - 2026-09-23
+
+### Added
+- Environment-independent tool discovery: the runner now resolves scanners via PATH and a set of known install dirs (and `SENTARI_TOOLS_PATH`), so a worker/systemd/detached process finds the same tools an interactive shell would. Previously a minimal PATH made a scanner look missing and a phase silently reported 0.
+- `--preflight`: report which external tools are installed/found and what each powers; a one-line environment summary now prints at the start of every scan and is embedded in the JSON report, so "0 findings" is never confused with "tool not installed".
+- Auto-save: when no output flag is given, a run now writes a timestamped HTML+JSON report instead of only printing to stdout, so results can't be lost.
+
+### Changed
+- Dockerfile now bakes in the full scanner set (nmap, sqlmap, nuclei, httpx, subfinder, ffuf, gobuster, git, dig, semgrep, Playwright/Chromium) so a containerized run has the tools with no host setup; docker-compose publishes the OOB port and adds restart policies.
+
 ## [0.23.0] - 2026-09-23
 
 ### Added

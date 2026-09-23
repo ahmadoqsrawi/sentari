@@ -9,14 +9,50 @@ created by actually running a process, a finding can never be fabricated.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from .models import Evidence
+
+# Extra directories to look in when a tool is not on PATH. Security scanners are
+# often installed to a Go bin or a user bin that a non-login shell (a Celery
+# worker, a systemd unit, a detached process) does not have on PATH, which would
+# otherwise make a scanner look "missing" and silently degrade a phase to zero.
+# Override or extend with the SENTARI_TOOLS_PATH env var (colon-separated).
+_DEFAULT_TOOL_DIRS = [
+    "/usr/local/bin", "/usr/bin", "/bin", "/usr/local/sbin", "/usr/sbin",
+    "/snap/bin", "/opt/bin",
+    os.path.expanduser("~/.local/bin"),
+    os.path.expanduser("~/bin"),
+    os.path.expanduser("~/go/bin"),
+    os.path.expanduser("~/.cargo/bin"),
+]
+
+
+def _tool_search_dirs() -> list[str]:
+    dirs = [d for d in os.environ.get("SENTARI_TOOLS_PATH", "").split(os.pathsep) if d]
+    return dirs + _DEFAULT_TOOL_DIRS
+
+
+def resolve_tool(name: str) -> Optional[str]:
+    """Full path to an external tool, searching PATH and known install dirs.
+
+    Independent of the caller's PATH, so a worker or detached process finds the
+    same tools an interactive shell would. Returns None if not found anywhere."""
+    found = shutil.which(name)
+    if found:
+        return found
+    for d in _tool_search_dirs():
+        cand = Path(d) / name
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
 
 
 class ToolRunner:
@@ -31,7 +67,7 @@ class ToolRunner:
         # In sandbox mode the tools live in the image, not on the host.
         if self.sandbox is not None:
             return True
-        return shutil.which(tool) is not None
+        return resolve_tool(tool) is not None
 
     @property
     def evidence(self) -> list[Evidence]:
@@ -71,8 +107,16 @@ class ToolRunner:
         timeout = timeout or self.default_timeout
         # In sandbox mode, rewrite the command to run inside a container. The
         # recorded evidence shows the actual command that ran (docker run ...).
+        exec_command = command
         if self.sandbox is not None and sandbox_wrap:
-            command = self.sandbox.wrap(command)
+            command = exec_command = self.sandbox.wrap(command)
+        else:
+            # Resolve the executable to a full path so it runs even when the
+            # process PATH is minimal (worker/systemd/detached process). The
+            # recorded evidence keeps the original command name for readability.
+            resolved = resolve_tool(command[0])
+            if resolved:
+                exec_command = [resolved, *command[1:]]
         started = time.monotonic()
         started_at = datetime.now(timezone.utc).isoformat()
 
@@ -87,7 +131,7 @@ class ToolRunner:
 
         try:
             proc = subprocess.run(
-                command, capture_output=True, text=True, timeout=timeout,
+                exec_command, capture_output=True, text=True, timeout=timeout,
             )
             rc, out, err = proc.returncode, proc.stdout, proc.stderr
         except FileNotFoundError:

@@ -5,7 +5,8 @@ import os
 import tempfile
 import unittest
 
-from sentari import domainverify, loginrec, nethdr, oob, repo, spec as spec_mod, wizard
+from sentari import (domainverify, loginrec, nethdr, oob, preflight, repo,
+                     runner as runner_mod, spec as spec_mod, wizard)
 from sentari.authorization import AuditLog, AuthorizationError, Scope, authorize
 from sentari.cli import _expand_presets, build_parser
 
@@ -85,6 +86,48 @@ class TestDomainVerify(unittest.TestCase):
         t = domainverify.token_for("example.com")
         msg = domainverify.instructions("example.com", t)
         self.assertIn("sentari-verify=" + t, msg)
+
+
+class TestToolDiscovery(unittest.TestCase):
+    def test_resolve_tool_finds_via_default_dirs_without_path(self):
+        # a common binary is found even when PATH is empty
+        saved = os.environ.get("PATH", "")
+        os.environ["PATH"] = ""
+        try:
+            self.assertIsNotNone(runner_mod.resolve_tool("ls"))
+        finally:
+            os.environ["PATH"] = saved
+
+    def test_resolve_tool_honors_sentari_tools_path(self):
+        d = tempfile.mkdtemp()
+        exe = os.path.join(d, "faketool")
+        with open(exe, "w") as f:
+            f.write("#!/bin/sh\n")
+        os.chmod(exe, 0o755)
+        os.environ["SENTARI_TOOLS_PATH"] = d
+        self.addCleanup(os.environ.pop, "SENTARI_TOOLS_PATH", None)
+        self.assertEqual(runner_mod.resolve_tool("faketool"), exe)
+
+    def test_missing_tool_returns_none(self):
+        self.assertIsNone(runner_mod.resolve_tool("definitely-not-a-real-tool-xyz"))
+
+
+class TestPreflight(unittest.TestCase):
+    def test_check_covers_known_tools_and_playwright(self):
+        rows = preflight.check()
+        names = {r.name for r in rows}
+        self.assertIn("nuclei", names)
+        self.assertIn("playwright", names)
+
+    def test_summary_line_flags_missing(self):
+        line = preflight.summary_line()
+        self.assertIn("optional tools available", line)
+
+    def test_as_dict_shape(self):
+        d = preflight.as_dict()
+        self.assertIn("tools", d)
+        self.assertIn("missing", d)
+        self.assertIsInstance(d["missing"], list)
 
 
 class TestOOB(unittest.TestCase):

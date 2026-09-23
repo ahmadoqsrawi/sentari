@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.23.0"
+__version__ = "0.24.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
                         "WAF-bypass token). Repeatable.")
     p.add_argument("--verify-domain", metavar="DOMAIN",
                    help="Prove control of DOMAIN via a DNS TXT record, then exit.")
+    p.add_argument("--preflight", action="store_true",
+                   help="Report which external scanner tools are installed and found, then exit.")
     p.add_argument("--login-record", metavar="URL",
                    help="Sign in through a real browser at URL, verify it, capture the "
                         "session cookies as a --identity/--header value, then exit.")
@@ -333,6 +335,11 @@ def main(argv: list[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
 
+    if args.preflight:
+        from . import preflight
+        print(preflight.render())
+        return 0
+
     if args.verify_domain:
         from . import domainverify
         res = domainverify.verify(args.verify_domain)
@@ -563,6 +570,12 @@ def main(argv: list[str] | None = None) -> int:
     if not args.target:
         print("error: a target is required (or use --list-phases)", file=sys.stderr)
         return 2
+
+    # Preflight banner: so a missing scanner is visible up front and a phase that
+    # reports 0 is never mistaken for a clean result. Full detail via --preflight.
+    from . import preflight as _preflight
+    _pf_rows = _preflight.check()
+    print(_preflight.summary_line(_pf_rows), file=sys.stderr)
 
     args.oob_bind = None
     if args.oob_host == "auto":
@@ -869,6 +882,7 @@ def main(argv: list[str] | None = None) -> int:
                      still=len(rr.still_present), new=len(rr.new))
 
     payload = {"results": [r.to_dict() for r in results]}
+    payload["environment"] = _preflight.as_dict(_pf_rows)
     if analysis is not None:
         payload["ai_analysis"] = _analysis_to_dict(analysis)
     payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
@@ -913,6 +927,21 @@ def main(argv: list[str] | None = None) -> int:
         from .reporting import pdf as pdf_report
         ok, msg = pdf_report.render_pdf(results, args.target, args.pdf)
         print(msg)
+
+    # Auto-save: never lose a run because no output flag was passed. When nothing
+    # else persisted the results, write a timestamped HTML+JSON report.
+    if not (args.json or args.html or args.xml or args.pdf or args.save_run or args.db):
+        import re as _re2
+        from datetime import datetime as _dt2
+        from .reporting import html as _auto_html
+        slug = _re2.sub(r"[^A-Za-z0-9._-]", "_", args.target)[:40]
+        base = Path(f"sentari-{slug}-{_dt2.now().strftime('%Y%m%d-%H%M%S')}")
+        base.with_suffix(".json").write_text(payload_json, encoding="utf-8")
+        base.with_suffix(".html").write_text(
+            _auto_html.render_html(results, args.target), encoding="utf-8")
+        print(f"\nNo output flag was given, so results were auto-saved to:\n"
+              f"  {base}.html\n  {base}.json\n"
+              f"View in the terminal: sentari --tui --json {base}.json")
 
     if args.autofix or args.autofix_pr:
         from . import autofix

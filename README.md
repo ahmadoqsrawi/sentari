@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-214%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-220%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -337,6 +337,7 @@ sentari --list-phases
 | `--header 'NAME: VALUE'` | Custom header sent with every request: API key, JWT, session cookie, WAF-bypass token (repeatable). |
 | `--code-review URL` | `--code-review` also accepts a git URL (GitHub/GitLab/Bitbucket): shallow-cloned, scanned, removed. |
 | `--verify-domain DOMAIN` | Prove control of a domain via a DNS TXT record before an external scan, then exit. |
+| `--preflight` | Report which external scanner tools are installed and found (searching PATH and known dirs), then exit. |
 | `--login-record URL` (+ `--login-user`, `--login-pass`) | Sign in through a real browser, verify it, capture the session cookies as a ready-to-use `--identity`/`--header` value, then exit. |
 | `--scope HOST` (or CIDR) | Authorized target(s). Repeatable. Required. |
 | `--authorized` | Attest you have permission to test the target. Required. |
