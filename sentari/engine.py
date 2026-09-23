@@ -87,6 +87,11 @@ def run_assessment(
         from . import threatintel
         threatintel.apply(results)
 
+    # Tag every finding confirmed vs reported/unverified (always on) so proven
+    # issues lead and scanner candidates never dominate the headline.
+    from . import confidence
+    confidence.apply(results)
+
     # Prioritization aids (always on): weight by asset value, tag likelihood x
     # impact. These rate the real findings; they never add findings.
     from . import prioritize

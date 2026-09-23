@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.24.0"
+__version__ = "0.25.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -131,6 +131,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="semgrep config/ruleset for --sast (default: auto).")
     p.add_argument("--injection", action="store_true",
                    help="Injection & logic tests: SSRF/XXE (OOB-confirmed), NoSQLi, mass assignment.")
+    p.add_argument("--framework", action="store_true",
+                   help="Framework/SPA checks: open redirect, Next.js image SSRF, host-header reflection.")
     p.add_argument("--oob-host", default="127.0.0.1",
                    help="Address the target can reach for SSRF/XXE callbacks (default 127.0.0.1). "
                         "Use 'auto' to detect this host's public IP (for external targets).")
@@ -189,6 +191,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", metavar="FILE", help="Write full results (with evidence) to JSON.")
     p.add_argument("--html", metavar="FILE", help="Write a self-contained HTML report.")
     p.add_argument("--xml", metavar="FILE", help="Write an XML report.")
+    p.add_argument("--sarif", metavar="FILE",
+                   help="Write a SARIF 2.1.0 report (GitHub code scanning / CI / IDEs).")
+    p.add_argument("--report", metavar="FILE",
+                   help="Write an executive Markdown report (summary, methodology, "
+                        "recommendations, coverage gaps, retest guidance).")
     p.add_argument("--pdf", metavar="FILE", help="Write a PDF report (needs reportlab).")
     p.add_argument("--save-run", metavar="DIR",
                    help="Save this run as <dir>/<timestamp>-<target>.json for the dashboard.")
@@ -216,6 +223,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Do not correlate finding CVEs against the CISA KEV catalog.")
     p.add_argument("--no-compliance", action="store_true",
                    help="Do not tag findings with OWASP/CWE/NIST references.")
+    p.add_argument("--threat-model", action="store_true",
+                   help="Plan the run as skill-scoped assessors (auth, authz, injection, "
+                        "framework, client-side, ...) and report what each one covered.")
     p.add_argument("--graph", action="store_true",
                    help="Graph of agents: specialized nodes share a blackboard; targets run in parallel.")
     p.add_argument("--graph-target", action="append", default=[], metavar="TARGET",
@@ -323,6 +333,7 @@ def _expand_presets(args) -> None:
         args.injection = True
         args.browser = True
         args.api_tests = True
+        args.framework = True
         if args.identity:
             args.access_control = True
 
@@ -393,6 +404,16 @@ def main(argv: list[str] | None = None) -> int:
         print("error: use --code-review or --web-pentest, not both", file=sys.stderr)
         return 2
     _expand_presets(args)
+
+    if args.threat_model:
+        # Enable the phases the assessors own; results are attributed back to
+        # each assessor after the run.
+        args.api_tests = True
+        args.injection = True
+        args.framework = True
+        args.browser = True
+        if args.identity:
+            args.access_control = True
 
     if args.header:
         from . import nethdr
@@ -650,6 +671,12 @@ def main(argv: list[str] | None = None) -> int:
         options["jwt"] = args.jwt
     if args.browser:
         options["browser"] = True
+    if args.framework:
+        options["framework"] = True
+        options.setdefault("oob_host", args.oob_host)
+        options.setdefault("oob_port", args.oob_port)
+        if args.oob_bind:
+            options.setdefault("oob_bind", args.oob_bind)
     if args.header:
         from . import nethdr
         options["extra_headers"] = nethdr.current()
@@ -710,6 +737,7 @@ def main(argv: list[str] | None = None) -> int:
             options.setdefault("oob_bind", args.oob_bind)
         options["browser"] = True
         options["api_tests"] = True
+        options["framework"] = True
         options.setdefault("exploit", {"modules": args.exploit_module, "exfil_sim": args.exfil_sim,
                                        "poc_scripts": args.poc, "poc_image": args.poc_image or "python:3-slim"})
         args.agent = True
@@ -801,6 +829,8 @@ def main(argv: list[str] | None = None) -> int:
             if not args.no_anomaly:
                 from . import anomaly
                 anomaly.apply(results)
+            from . import confidence as _conf
+            _conf.apply(results)
             if ar.note:
                 print(ar.note)
             print("\n-- agent transcript --")
@@ -844,6 +874,16 @@ def main(argv: list[str] | None = None) -> int:
 
     print(console.render(results))
 
+    from . import coverage as _coverage
+    coverage_map = _coverage.build(results, options, agent_mode=args.agent)
+    print("\n" + _coverage.render(coverage_map))
+
+    threat_model = None
+    if args.threat_model:
+        from . import threatmodel
+        threat_model = threatmodel.attribute(results, options)
+        print("\n" + threatmodel.render(threat_model))
+
     analysis = None
     if args.ai:
         from .ai import GroundedAnalyst, get_provider
@@ -883,6 +923,9 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {"results": [r.to_dict() for r in results]}
     payload["environment"] = _preflight.as_dict(_pf_rows)
+    payload["coverage"] = coverage_map
+    if threat_model is not None:
+        payload["threat_model"] = threat_model
     if analysis is not None:
         payload["ai_analysis"] = _analysis_to_dict(analysis)
     payload_json = json.dumps(payload, indent=2, ensure_ascii=False)
@@ -923,6 +966,19 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.xml).write_text(xml_report.render_xml(results, args.target), encoding="utf-8")
         print(f"XML report written to {args.xml}")
 
+    if args.sarif:
+        from .reporting import sarif as sarif_report
+        Path(args.sarif).write_text(sarif_report.render_sarif(results, args.target), encoding="utf-8")
+        print(f"SARIF report written to {args.sarif}")
+
+    if args.report:
+        from .reporting import narrative
+        md = narrative.render_markdown(
+            results, args.target, coverage_map,
+            _analysis_to_dict(analysis) if analysis is not None else None)
+        Path(args.report).write_text(md, encoding="utf-8")
+        print(f"Executive report written to {args.report}")
+
     if args.pdf:
         from .reporting import pdf as pdf_report
         ok, msg = pdf_report.render_pdf(results, args.target, args.pdf)
@@ -930,7 +986,8 @@ def main(argv: list[str] | None = None) -> int:
 
     # Auto-save: never lose a run because no output flag was passed. When nothing
     # else persisted the results, write a timestamped HTML+JSON report.
-    if not (args.json or args.html or args.xml or args.pdf or args.save_run or args.db):
+    if not (args.json or args.html or args.xml or args.sarif or args.report
+            or args.pdf or args.save_run or args.db):
         import re as _re2
         from datetime import datetime as _dt2
         from .reporting import html as _auto_html

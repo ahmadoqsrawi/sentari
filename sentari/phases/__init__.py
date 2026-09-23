@@ -16,6 +16,7 @@ from .vuln import VulnPhase
 from .apitest import APITestPhase
 from .accesscontrol import AccessControlPhase
 from .injection import InjectionPhase
+from .framework import FrameworkPhase
 from .workflow_phase import WorkflowPhase
 from .proxy_ingest import ProxyIngestPhase
 from .browser import BrowserPhase
@@ -31,6 +32,7 @@ PHASES: list[type[Phase]] = [
     APITestPhase,
     AccessControlPhase,
     InjectionPhase,
+    FrameworkPhase,
     WorkflowPhase,
     ProxyIngestPhase,
     BrowserPhase,
@@ -40,4 +42,5 @@ PHASES: list[type[Phase]] = [
 __all__ = ["Phase", "PhaseContext", "PHASES",
            "OSINTPhase", "ReconPhase", "ScanPhase", "SASTPhase", "CloudAuditPhase",
            "VulnPhase", "APITestPhase", "AccessControlPhase", "InjectionPhase",
-           "WorkflowPhase", "ProxyIngestPhase", "BrowserPhase", "VerifyPhase"]
+           "FrameworkPhase", "WorkflowPhase", "ProxyIngestPhase", "BrowserPhase",
+           "VerifyPhase"]

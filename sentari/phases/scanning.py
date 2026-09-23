@@ -213,8 +213,22 @@ class ScanPhase(Phase):
             status, _, _ = _fetch(url)
             return path, url, status, round(time.monotonic() - t0, 3)
 
+        # Catch-all / soft-404 detection: some servers (e.g. a bot or SPA) answer
+        # every path with the same status, so a "sensitive path reachable" 200 is
+        # not evidence of an exposed file. Probe random nonexistent paths first;
+        # any status they also return is not distinctive and is suppressed.
+        import uuid as _uuid
+        rnd_paths = [f"/{_uuid.uuid4().hex}", f"/{_uuid.uuid4().hex}/does-not-exist.env"]
+        baseline = {st for _, _, st, _ in pmap(probe, rnd_paths, workers=4) if st > 0}
+        if baseline:
+            result.notes.append(
+                f"{base} returns HTTP {sorted(baseline)} for random nonexistent paths "
+                "(catch-all); matching sensitive-path hits are suppressed as false positives.")
+
         for path, url, status, dur in pmap(probe, _COMMON_PATHS, workers=16):
             if status in (200, 401, 403) and status > 0:
+                if status in baseline:
+                    continue  # same as a nonexistent path -> not a real exposure
                 ev = ctx.runner.record_internal(["http-get", url], 0, f"HTTP {status}",
                                                 duration_sec=dur)
                 sev = Severity.HIGH if path.startswith(("/.git", "/.env", "/.svn")) and status == 200 else Severity.LOW

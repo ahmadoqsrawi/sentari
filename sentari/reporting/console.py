@@ -38,8 +38,20 @@ def render(results: list[PhaseResult]) -> str:
     lines.append("-" * 70)
     if not all_findings:
         lines.append("No findings.")
-    for f in sorted(all_findings, key=lambda x: -x.severity.rank):
-        lines.append(f"\n[{_LABEL[f.severity]}] {f.title}")
+    else:
+        from .. import confidence as _conf
+        lines.append(_conf.summary_line(results))
+        lines.append("(confirmed = a real effect was observed; reported = a scanner "
+                     "flagged it, verify before trusting)")
+    # Confirmed findings first, then by severity: proven issues lead, scanner
+    # candidates never dominate the top of the report.
+    def _sort_key(x):
+        conf = (x.metadata or {}).get("confidence", "reported")
+        return (0 if conf == "confirmed" else 1, -x.severity.rank)
+    for f in sorted(all_findings, key=_sort_key):
+        conf = (f.metadata or {}).get("confidence", "reported")
+        tag = "" if conf == "confirmed" else " (unverified)"
+        lines.append(f"\n[{_LABEL[f.severity]}]{tag} {f.title}")
         if f.location:
             lines.append(f"        where: {f.location}")
         lines.append(f"        {f.description}")

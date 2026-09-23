@@ -4,6 +4,17 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.25.0] - 2026-09-23
+
+### Added
+- Confidence tagging: every finding is marked confirmed (a real effect was observed) or reported/unverified (a scanner flagged it), the report leads with confirmed and counts them separately, so an unverified template match no longer shows as a proven critical.
+- Coverage map + gaps: the run reports every surface reviewed with its outcome and the gaps (phase not enabled, tool missing, no credentials for authenticated flows); included in the console output and JSON.
+- Catch-all / soft-404 detection: sensitive-path hits are suppressed on servers that return the same status for random nonexistent paths (kills a common false-positive class).
+- Framework/SPA phase (--framework): open redirect (Location-confirmed), Next.js image-optimizer SSRF (/_next/image, OOB-confirmed), and host-header reflection.
+- Threat model (--threat-model): plans the run as skill-scoped assessors (recon, auth/API, authorization/IDOR, injection, framework, client-side, verification) and attributes results to each, with per-assessor gaps.
+- Executive Markdown report (--report): summary, methodology, confirmed findings, recommendations, coverage gaps and retest guidance, grounded in the real run.
+- SARIF 2.1.0 export (--sarif) for GitHub code scanning / CI / IDEs, carrying severity, confidence, and references.
+
 ## [0.24.0] - 2026-09-23
 
 ### Added

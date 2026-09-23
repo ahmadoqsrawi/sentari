@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-220%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-229%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -79,6 +79,17 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 - **Race conditions** (`--race-url`) and **session fixation** (`--session-fixation`)
 - XXE and mass assignment POST data, so they run only outside safe mode
 - **External targets:** OOB confirmation needs the target to reach Sentari's listener, so for a public site (behind Cloudflare or not) run with `--oob-host auto` (or your VPS public IP) and a fixed `--oob-port` opened in the firewall. Against `127.0.0.1` these checks only confirm for a target on the same host
+
+### 🧩 Framework / SPA (`--framework`)
+- Checks common to modern apps (Next.js and similar): **open redirect** (confirmed by the actual `Location` header), **Next.js image-optimizer SSRF** (`/_next/image`, out-of-band confirmed), and **host-header / X-Forwarded-Host reflection**
+- Every finding cites the exact request/response; unconfirmed cases are reported as candidates, not asserted
+
+### 🧭 Coverage, confidence, and honest reporting
+- **Confidence:** every finding is tagged **confirmed** (a real effect was observed) or **reported** (a scanner flagged it, needs verification), so an unverified template match never masquerades as a proven critical
+- **Coverage map:** the report lists every surface reviewed with its outcome, plus **gaps** (what was not tested and why: a phase not enabled, a tool missing, no credentials for authenticated flows), so "0 findings" is honest, not ambiguous
+- **False-positive suppression:** catch-all / soft-404 detection drops "sensitive path reachable" hits on servers that answer 200 for every path
+- **Threat model (`--threat-model`):** frames the run as skill-scoped assessors and reports what each covered and concluded
+- **Preflight:** `--preflight` (and a banner at scan start) reports which scanner tools are present, so a missing tool is visible rather than a silent zero
 
 ### 🧾 Business logic (`--workflow FILE`)
 - Replays an operator-defined request sequence (with variable capture) and flags steps that succeed when they should fail (workflow/authorization bypass, price/quantity tampering) or return an unexpected status
@@ -305,6 +316,7 @@ pip install ".[postgres]"     # Postgres run store
 | 3 | API security (`--api-tests`) | JWT audit, rate-limit, auth-exposure, methods (GET/OPTIONS only) |
 | 3 | Access control (`--access-control`) | broken-access-control / IDOR by comparing identities |
 | 3 | Injection & logic (`--injection`) | SSRF/XXE/cmdi (OOB-confirmed), SSTI, NoSQLi, mass assignment, deserialization |
+| 3 | Framework / SPA (`--framework`) | open redirect, Next.js image-optimizer SSRF (OOB), host-header reflection |
 | 3 | Business logic (`--workflow`) | replay an operator-defined workflow spec |
 | 3 | Proxy ingest (`--proxy-ingest`) | analyze captured HTTP traffic (mitmproxy JSONL or HAR) |
 | 3 | Client-side DAST (`--browser`) | reflected/DOM XSS + prototype pollution (confirmed by execution), clickjacking, CSRF |
@@ -344,6 +356,9 @@ sentari --list-phases
 | `--phases NAMES` | Comma-separated phase names, or `all` (default). |
 | `--no-safe-mode` | Allow intrusive and active checks (masscan, stored XSS, XXE, mass assignment) and enable the gated offensive features. |
 | `--html` / `--json` / `--xml` / `--pdf` FILE | Write the report in that format (PDF needs reportlab). |
+| `--sarif FILE` | Write a SARIF 2.1.0 report (GitHub code scanning / CI / IDEs). |
+| `--report FILE` | Write an executive Markdown report (summary, methodology, recommendations, coverage gaps, retest guidance). |
+| `--preflight` | Report which external scanner tools are installed and found, then exit. |
 | `--cloud {aws,azure,gcp}` | List internet-facing assets in your cloud account and exit. |
 | `--asset-value {low,medium,high,critical}` | Asset criticality for business-impact scoring. |
 | `--correlate` / `--trends` | Cross-asset correlation / trend over stored runs in `--db` or `--runs-dir`, then exit. |
@@ -357,6 +372,8 @@ sentari --list-phases
 | `--api-tests` / `--jwt TOKEN` | Read-only API-security checks / audit a single JWT offline. |
 | `--sast PATH` (+ `--sast-config`) | Static analysis over a source tree with semgrep. |
 | `--cloud-audit aws\|azure\|gcp\|kubernetes` | Audit cloud account configuration with Prowler. |
+| `--framework` | Framework/SPA checks: open redirect, Next.js image-optimizer SSRF (OOB), host-header reflection. |
+| `--threat-model` | Plan the run as skill-scoped assessors (auth, authz, injection, framework, client-side, ...) and report what each covered. |
 | `--graph` (+ `--graph-target`) | Graph of agents: shared blackboard, parallel targets, cross-asset correlation. |
 | `--poc SCRIPT` (+ `--poc-image`) | Run a Python PoC against the target in a sandbox container (gated). |
 | `--proxy PORT` / `--proxy-ingest FILE` | Capture HTTP traffic via mitmproxy / analyze a capture (JSONL or HAR). |

@@ -9,3 +9,10 @@ sentari-audit.log
 # deepwiki-rs / Litho cache
 .litho/
 litho.docs/
+
+# auto-saved run reports
+sentari-*.html
+sentari-*.json
+pentest.json
+code-review.json
+sentari-audit.log
