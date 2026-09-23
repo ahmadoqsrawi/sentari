@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.35.0"
+__version__ = "0.36.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1079,7 +1079,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.live:
             from . import livetui
             on_bus = None
-            if args.threat_model:
+            # In agent mode the LLM orchestrator emits its own agent/spawn/todo
+            # events; the phase-based mapper is only for the deterministic pipeline.
+            if args.threat_model and not args.agent:
                 from . import orchestrator
                 on_bus = lambda bus: orchestrator.attach(bus, args.target, options)  # noqa: E731
             return livetui.run(fn, {"target": args.target, "mode": _mode_label(),
@@ -1091,11 +1093,21 @@ def main(argv: list[str] | None = None) -> int:
             from .agent import run_agent
             from .ai import get_provider
             provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
-            ar = _maybe_live(lambda: run_agent(
-                args.target, scope, args.authorized, audit, provider,
-                goal=args.goal, safe_mode=not args.no_safe_mode, timeout=args.timeout,
-                max_steps=args.agent_steps, max_budget=args.max_budget,
-            ))
+            if args.threat_model:
+                # true multi-agent orchestration: a root model plans and dispatches
+                # each assessor as its own reasoning sub-agent.
+                from . import orchestrator
+                ar = _maybe_live(lambda: orchestrator.run_llm(
+                    args.target, scope, args.authorized, audit, provider,
+                    options=options, safe_mode=not args.no_safe_mode, timeout=args.timeout,
+                    max_steps=args.agent_steps, max_budget=args.max_budget,
+                ))
+            else:
+                ar = _maybe_live(lambda: run_agent(
+                    args.target, scope, args.authorized, audit, provider,
+                    goal=args.goal, safe_mode=not args.no_safe_mode, timeout=args.timeout,
+                    max_steps=args.agent_steps, max_budget=args.max_budget,
+                ))
             results = ar.results
             if not args.no_compliance:
                 from . import compliance

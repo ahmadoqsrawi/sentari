@@ -52,6 +52,39 @@ class TestOrchestrator(unittest.TestCase):
         last = seen["todo"][-1]
         self.assertTrue(all(t["status"] in ("pending", "done") for t in last))
 
+    def test_run_llm_dispatches_reasoning_subagents(self):
+        import pathlib
+        import tempfile
+        from sentari.authorization import AuditLog, Scope
+
+        class FakeProvider:
+            name = "fake"
+
+            def available(self):
+                return (True, "")
+
+            def supports_tools(self):
+                return False
+
+            def complete(self, system, user, max_tokens=350):
+                return "Plan: recon first, then the specialized assessors."
+
+        bus, seen = self._capture()
+        thinking = []
+        bus.subscribe(lambda ev: thinking.append(ev.source) if ev.kind == "thinking" else None)
+        events.set_current(bus)
+        try:
+            audit = AuditLog(pathlib.Path(tempfile.mktemp()))
+            ar = orchestrator.run_llm("http://127.0.0.1:9", Scope.from_items(["127.0.0.1"]),
+                                      True, audit, FakeProvider(), options={}, max_steps=1)
+        finally:
+            events.set_current(None)
+        self.assertIn("Root Agent", thinking)          # real root plan emitted as thinking
+        spawned = [s for s, _ in seen["agent"] if s != "Root Agent"]
+        self.assertIn("Recon & Perimeter Mapper", spawned)
+        self.assertEqual(len(ar.results), 6)           # one result per dispatched sub-agent
+        self.assertIn(("Root Agent", "done"), seen["agent"])
+
     def test_assessor_for_phase(self):
         self.assertEqual(threatmodel.assessor_for_phase("injection")["name"],
                          "Injection Assessor")

@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.36.0] - 2026-09-23
+
+### Added
+- True multi-agent LLM orchestration (`--agent --threat-model --live`): a root model plans, then dispatches each assessor (recon, known-vuln, auth/API, injection, framework/SPA, client-side, and authorization when credentials are given) as its own reasoning LLM sub-agent that runs real tools and streams its genuine thinking, spawn mandate, and tool/finding events into the agent tree. Context (findings so far) is carried forward between assessors; spend accumulates across sub-agents so `--max-budget` caps the whole run, and cancel works. Findings still require evidence (grounding guard). The agent loop now tags its events per sub-agent name.
+
 ## [0.35.0] - 2026-09-23
 
 ### Added

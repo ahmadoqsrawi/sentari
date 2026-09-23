@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-287%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-288%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -95,7 +95,8 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 - A multi-panel terminal view of a run in progress: a header with target, mode, model, elapsed time, request/finding counts, and (for AI modes) real token usage and an estimated cost; a live color-coded transcript of phases, tools, findings, and agent steps/thinking; and a roster of phases with their status
 - Everything shown is a real event from the run; nothing is invented. Without a TTY it streams the same events as plain lines
 - **Cancel a running scan** with `c` or `q`: it stops the current tool and skips the remaining phases, then you press `q` to close. `[up]/[down]` scroll the transcript
-- **Orchestrated agent view** with `--threat-model --live`: the right panel becomes an agent tree (a Root Agent that spawns skill-scoped assessors, each showing pending/running/done) with a live **todo** checklist, while the left feed shows the plan and the real tool/finding stream. Every status change is driven by a real phase; add `--agent` (with an API key) to stream the model's own thinking
+- **Orchestrated agent view** with `--threat-model --live`: the right panel becomes an agent tree (a Root Agent that spawns skill-scoped assessors, each showing pending/running/done) with a live **todo** checklist, while the left feed shows the plan, a real "spawning" mandate per assessor, and the real tool/finding stream
+- **True multi-agent LLM orchestration** with `--agent --threat-model --live` (needs an API key): a root model plans out loud, then dispatches each assessor as its own reasoning LLM sub-agent that runs real tools and streams its genuine thinking into the tree, carrying context forward between assessors. Token usage and estimated cost climb live in the header; cap it with `--max-budget`, cancel with `c`. Findings still require evidence (the grounding guard drops any the model invents)
 
 ### 🧾 Business logic (`--workflow FILE`)
 - Replays an operator-defined request sequence (with variable capture) and flags steps that succeed when they should fail (workflow/authorization bypass, price/quantity tampering) or return an unexpected status
