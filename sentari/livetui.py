@@ -40,6 +40,8 @@ class _Monitor:
         self.done = False
         self.cancelling = False
         self.cancel = None   # set to the bus cancel Event by run()
+        self.orchestrated = False
+        self.todos: list = []
 
     def _roster(self, name: str) -> dict:
         if name not in self.roster:
@@ -61,13 +63,20 @@ class _Monitor:
                 self.cost += ev.data["cost"]
             if ev.source:
                 self.model = ev.source
+        elif k == "agent":
+            self.orchestrated = True
+            self._roster(ev.source)["status"] = ev.data.get("status", "running")
+        elif k == "todo":
+            self.todos = ev.data.get("items", [])
         elif k == "phase_start":
-            self._roster(ev.source)["status"] = "running"
+            if not self.orchestrated:
+                self._roster(ev.source)["status"] = "running"
         elif k == "phase_done":
-            r = self._roster(ev.source)
-            r["status"] = "failed" if ev.data.get("error") else "done"
-            r["findings"] = ev.data.get("findings", r.get("findings", 0))
-        elif k in ("agent_step", "thinking", "observation"):
+            if not self.orchestrated:
+                r = self._roster(ev.source)
+                r["status"] = "failed" if ev.data.get("error") else "done"
+                r["findings"] = ev.data.get("findings", r.get("findings", 0))
+        elif k in ("agent_step", "observation") and not self.orchestrated:
             self._roster("agent")["status"] = "running"
         elif k == "run_done":
             self.done = True
@@ -81,12 +90,17 @@ class _Monitor:
         return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 
-def run(run_callable, meta: dict):
-    """Run ``run_callable`` under the live monitor and return its result."""
+def run(run_callable, meta: dict, on_bus=None):
+    """Run ``run_callable`` under the live monitor and return its result.
+
+    ``on_bus(bus)`` is called after the bus is created, to attach extra
+    subscribers (e.g. the orchestration view)."""
     bus = events.EventBus()
     mon = _Monitor(meta)
     mon.cancel = bus.cancel
     bus.subscribe(mon.on_event)
+    if on_bus is not None:
+        on_bus(bus)
     holder: dict = {}
 
     def worker():
@@ -146,8 +160,9 @@ def _print_plain_summary(mon: _Monitor) -> None:
 
 # ---- curses UI -----------------------------------------------------------
 _KIND_COLOR = {
-    "phase_start": 2, "phase_done": 2, "finding": 3, "thinking": 6,
+    "phase_start": 2, "phase_done": 2, "finding": 3, "thinking": 6, "plan": 6,
     "agent_step": 4, "observation": 0, "tool": 4, "usage": 5, "error": 3,
+    "todo": 5, "agent": 4,
 }
 
 
@@ -205,9 +220,13 @@ def _draw(stdscr, mon: _Monitor, scroll: int) -> None:
         except Exception:
             return 0
 
+    try:
+        from . import __version__ as _ver
+    except Exception:
+        _ver = "?"
     status = "DONE" if mon.done else ("CANCELLING" if mon.cancelling else "RUNNING")
     header1 = (f" target: {mon.meta.get('target','')}   mode: {mon.meta.get('mode','')}"
-               f"   model: {mon.model or '-'}")
+               f"   model: {mon.model or '-'}   v{_ver}")
     cost = f"  est.$ {mon.cost:.4f}" if mon.cost else ""
     header2 = (f" status: {status}  elapsed {mon.elapsed()}   requests: {mon.requests}"
                f"   findings: {mon.findings}   tokens: {mon.tokens}{cost}")
@@ -217,18 +236,18 @@ def _draw(stdscr, mon: _Monitor, scroll: int) -> None:
     stdscr.hline(2, 0, curses.ACS_HLINE, w)
 
     body_top, body_bottom = 3, h - 3
-    right_w = min(32, max(20, w // 3))
+    right_w = min(40, max(24, w // 3))
     left_w = w - right_w - 1
 
-    # left: transcript
-    lines = list(mon.transcript)
+    # left: transcript (agent/todo events drive the right panel, not the feed)
+    lines = [e for e in mon.transcript if e.kind not in ("agent", "todo")]
     view_h = body_bottom - body_top
     end = len(lines) - scroll
     start = max(0, end - view_h)
     row = body_top
     for ev in lines[start:end]:
         prefix = {"phase_start": "==>", "phase_done": "  <", "finding": " !!",
-                  "agent_step": "  >", "thinking": "  ~", "observation": "  <",
+                  "agent_step": "  >", "thinking": "  ~", "plan": " *", "observation": "  <",
                   "tool": "  .", "usage": "  $", "note": " >>"}.get(ev.kind, "  .")
         text = f"{prefix} [{ev.source}] {ev.text}"
         color = cp(_KIND_COLOR.get(ev.kind, 1))
@@ -239,21 +258,37 @@ def _draw(stdscr, mon: _Monitor, scroll: int) -> None:
         if row >= body_bottom:
             break
 
-    # divider + right: roster
+    # divider + right: agent tree (orchestrated) or phase roster, then todos
     for r in range(body_top, body_bottom):
         stdscr.addch(r, left_w, curses.ACS_VLINE)
-    stdscr.addstr(body_top, left_w + 2, "ROSTER", curses.A_BOLD)
+    title = "AGENTS" if mon.orchestrated else "ROSTER"
+    stdscr.addstr(body_top, left_w + 2, title, curses.A_BOLD)
     rrow = body_top + 1
     _mark = {"running": ("*", 3), "done": ("+", 2), "failed": ("x", 3),
-             "pending": (".", 1)}
+             "pending": (".", 1), "spawning": ("*", 6)}
     for name in mon.order:
         if rrow >= body_bottom:
             break
         st = mon.roster[name]
         sym, col = _mark.get(st["status"], (".", 1))
-        line = f"{sym} {name[:18]:18} {st['status']}"
+        # indent spawned agents under Root Agent for a tree look
+        indent = "" if name == "Root Agent" else "  "
+        line = f"{indent}{sym} {name}"
         stdscr.addstr(rrow, left_w + 2, line[:right_w - 3], cp(col))
         rrow += 1
+
+    if mon.todos and rrow < body_bottom - 1:
+        rrow += 1
+        stdscr.addstr(rrow, left_w + 2, "TODO", curses.A_BOLD)
+        rrow += 1
+        _tmark = {"done": "[x]", "running": "[~]", "pending": "[ ]"}
+        for t in mon.todos:
+            if rrow >= body_bottom:
+                break
+            box = _tmark.get(t.get("status"), "[ ]")
+            stdscr.addstr(rrow, left_w + 2, f"{box} {t['name']}"[:right_w - 3],
+                          cp(2) if t.get("status") == "done" else 0)
+            rrow += 1
 
     # footer
     stdscr.hline(h - 2, 0, curses.ACS_HLINE, w)

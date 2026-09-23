@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.33.0"
+__version__ = "0.34.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1078,8 +1078,12 @@ def main(argv: list[str] | None = None) -> int:
     def _maybe_live(fn):
         if args.live:
             from . import livetui
+            on_bus = None
+            if args.threat_model:
+                from . import orchestrator
+                on_bus = lambda bus: orchestrator.attach(bus, args.target, options)  # noqa: E731
             return livetui.run(fn, {"target": args.target, "mode": _mode_label(),
-                                    "model": args.ai_model or ""})
+                                    "model": args.ai_model or ""}, on_bus=on_bus)
         return fn()
 
     try:

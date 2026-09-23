@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.34.0] - 2026-09-23
+
+### Added
+- Orchestrated agent view in the live monitor (`--threat-model --live`): the right panel shows an agent tree (a Root Agent spawning the skill-scoped assessors, each pending/running/done) with a live todo checklist, and the left feed shows the plan and the real tool/finding stream. Driven by an orchestration layer (orchestrator.py) that maps real phase events to assessor status and todos, so nothing is fabricated; the header now also shows the version. Combine with `--agent` (and an API key) to stream the model's own thinking.
+
 ## [0.33.0] - 2026-09-23
 
 ### Added

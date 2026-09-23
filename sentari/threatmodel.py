@@ -46,6 +46,13 @@ ASSESSORS: list[dict] = [
 ]
 
 
+def assessor_for_phase(phase: str) -> dict | None:
+    for a in ASSESSORS:
+        if phase in a["phases"]:
+            return a
+    return None
+
+
 def enabled_options(options: dict | None = None) -> dict:
     """Merge every assessor's enable-flags into the run options."""
     opts = dict(options or {})
