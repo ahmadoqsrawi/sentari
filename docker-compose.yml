@@ -1,11 +1,21 @@
 # Local distributed stack: Redis broker + Celery worker + read-only dashboard.
+# The image (see Dockerfile) ships every scanner, so a containerized run has the
+# full tool set with no host setup.
+#
 # Bring it up:  docker compose up --build
-# Enqueue a scan (from the host, into the worker):
-#   docker compose run --rm worker-cli <target> --scope <target> --authorized --enqueue --db /data/sentari.db
+# Enqueue a scan into the worker (external target, public OOB):
+#   docker compose run --rm worker-cli https://app.example.com \
+#     --scope app.example.com --authorized --enqueue --db /data/sentari.db \
+#     --oob-host <YOUR_PUBLIC_IP> --oob-port 8611
 # Then open http://localhost:8600
+#
+# For OOB callbacks (SSRF/XXE/command injection) to reach the worker from an
+# external target, port 8611 is published below; also open it in the host
+# firewall and your cloud security group, and pass the public IP as --oob-host.
 services:
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -14,9 +24,12 @@ services:
 
   worker:
     build: .
+    restart: unless-stopped
     entrypoint: ["celery", "-A", "sentari.tasks", "worker", "--loglevel=info"]
     environment:
       SENTARI_BROKER_URL: redis://redis:6379/0
+    ports:
+      - "8611:8611"   # OOB callback listener (use --oob-port 8611)
     volumes:
       - data:/data
     depends_on:
@@ -25,6 +38,7 @@ services:
 
   dashboard:
     build: .
+    restart: unless-stopped
     command: ["--serve", "--db", "/data/sentari.db", "--host", "0.0.0.0", "--port", "8600"]
     ports:
       - "8600:8600"
