@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.33.0] - 2026-09-23
+
+### Added
+- Cancel a running scan from the live monitor (`--live`): press `c` or `q` to stop. Cancellation is cooperative and responsive: the runner kills the in-flight tool immediately, the engine stops before further phases (and skips gated exploitation/post-exploitation), and the agent loop stops between steps. Implemented via a cancel flag on the event bus (`events.should_cancel()`); the runner now executes tools through Popen so a cancel or timeout terminates the process at once.
+
 ## [0.32.1] - 2026-09-23
 
 ### Fixed

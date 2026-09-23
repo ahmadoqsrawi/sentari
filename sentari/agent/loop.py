@@ -107,8 +107,9 @@ def _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out,
     convo: list[str] = []
     if goal:
         convo.append(f"Goal: {goal}")
+    from .. import events
     for step in range(1, max_steps + 1):
-        if _over_budget(max_budget, out):
+        if events.should_cancel() or _over_budget(max_budget, out):
             break
         user = "\n".join(convo[-30:]) + "\n\nNext action as JSON:"
         try:
@@ -142,7 +143,7 @@ def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out,
                             "Assess the target using the tools. Call finish when done."}]
     from .. import events
     for step in range(1, max_steps + 1):
-        if _over_budget(max_budget, out):
+        if events.should_cancel() or _over_budget(max_budget, out):
             break
         turn = provider.tool_turn(system, messages, OPENAI_TOOLS, max_tokens=800)
         if turn.get("text"):

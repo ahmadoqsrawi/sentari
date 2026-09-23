@@ -39,6 +39,7 @@ class EventBus:
         self._subs: list = []
         self._lock = threading.Lock()
         self.log: deque = deque(maxlen=maxlen)
+        self.cancel = threading.Event()   # set to request the running scan stop
 
     def subscribe(self, fn) -> None:
         with self._lock:
@@ -70,3 +71,9 @@ def emit(kind: str, source: str = "", text: str = "", **data) -> None:
     bus = _current.get()
     if bus is not None:
         bus.emit(Event(kind, source, text, data))
+
+
+def should_cancel() -> bool:
+    """True if a cancel has been requested for the current thread's run."""
+    bus = _current.get()
+    return bus is not None and bus.cancel.is_set()

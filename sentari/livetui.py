@@ -38,6 +38,8 @@ class _Monitor:
         self.cost = 0.0
         self.model = meta.get("model") or ""
         self.done = False
+        self.cancelling = False
+        self.cancel = None   # set to the bus cancel Event by run()
 
     def _roster(self, name: str) -> dict:
         if name not in self.roster:
@@ -83,6 +85,7 @@ def run(run_callable, meta: dict):
     """Run ``run_callable`` under the live monitor and return its result."""
     bus = events.EventBus()
     mon = _Monitor(meta)
+    mon.cancel = bus.cancel
     bus.subscribe(mon.on_event)
     holder: dict = {}
 
@@ -163,38 +166,31 @@ def _curses_loop(stdscr, mon: _Monitor, worker: threading.Thread) -> None:
     except Exception:
         pass
     scroll = 0
-    note = ""
     while True:
         try:
-            _draw(stdscr, mon, scroll, note)
+            _draw(stdscr, mon, scroll)
         except curses.error:
             pass
         ch = stdscr.getch()
         if ch == -1:
             continue
-        if ch in (ord("q"), ord("Q")) and mon.done:
-            break
-        if ch in (ord("q"), ord("Q")) and not worker.is_alive():
-            break
-        if ch == curses.KEY_UP:
+        if ch in (ord("q"), ord("Q"), ord("c"), ord("C"), 3):  # q / c / Ctrl-C
+            if mon.done or not worker.is_alive():
+                break                       # finished -> quit the viewer
+            if mon.cancel is not None:      # running -> request cancel
+                mon.cancel.set()
+                mon.cancelling = True
+        elif ch == curses.KEY_UP:
             scroll = min(scroll + 1, max(0, len(mon.transcript) - 1))
         elif ch == curses.KEY_DOWN:
             scroll = max(0, scroll - 1)
-        elif ch in (curses.KEY_PPAGE,):
+        elif ch == curses.KEY_PPAGE:
             scroll += 10
-        elif ch in (curses.KEY_NPAGE,):
+        elif ch == curses.KEY_NPAGE:
             scroll = max(0, scroll - 10)
-        elif ch in (10, 13):  # Enter: record the note into the run log
-            if note.strip():
-                mon.transcript.append(events.Event("note", "you", note.strip()))
-                note = ""
-        elif ch in (curses.KEY_BACKSPACE, 127, 8):
-            note = note[:-1]
-        elif 32 <= ch < 127:
-            note += chr(ch)
 
 
-def _draw(stdscr, mon: _Monitor, scroll: int, note: str) -> None:
+def _draw(stdscr, mon: _Monitor, scroll: int) -> None:
     import curses
     stdscr.erase()
     h, w = stdscr.getmaxyx()
@@ -209,7 +205,7 @@ def _draw(stdscr, mon: _Monitor, scroll: int, note: str) -> None:
         except Exception:
             return 0
 
-    status = "DONE" if mon.done else "RUNNING"
+    status = "DONE" if mon.done else ("CANCELLING" if mon.cancelling else "RUNNING")
     header1 = (f" target: {mon.meta.get('target','')}   mode: {mon.meta.get('mode','')}"
                f"   model: {mon.model or '-'}")
     cost = f"  est.$ {mon.cost:.4f}" if mon.cost else ""
@@ -262,8 +258,11 @@ def _draw(stdscr, mon: _Monitor, scroll: int, note: str) -> None:
     # footer
     stdscr.hline(h - 2, 0, curses.ACS_HLINE, w)
     if mon.done:
-        foot = " done. [q] quit   [up/down] scroll"
+        foot = " done.   [q] quit    [up/down] scroll"
+    elif mon.cancelling:
+        foot = " cancelling... stopping the current tool and skipping the rest"
     else:
-        foot = f" > {note}"[:w - 20] + "   [up/down] scroll  [q] quit when done"
-    stdscr.addstr(h - 1, 0, foot[:w - 1])
+        foot = " [c] or [q] cancel the scan    [up/down] scroll"
+    stdscr.addstr(h - 1, 0, foot[:w - 1],
+                  cp(3) | curses.A_BOLD if mon.cancelling else 0)
     stdscr.refresh()

@@ -40,6 +40,42 @@ class TestEvents(unittest.TestCase):
         self.assertEqual(len(ok), 1)
 
 
+class TestCancel(unittest.TestCase):
+    def test_should_cancel_reflects_bus(self):
+        events.set_current(None)
+        self.assertFalse(events.should_cancel())
+        bus = events.EventBus()
+        events.set_current(bus)
+        try:
+            self.assertFalse(events.should_cancel())
+            bus.cancel.set()
+            self.assertTrue(events.should_cancel())
+        finally:
+            events.set_current(None)
+
+    def test_engine_stops_when_cancelled(self):
+        import pathlib
+        import tempfile
+        from sentari.authorization import AuditLog, Scope
+        from sentari.engine import run_assessment
+        bus = events.EventBus()
+        bus.cancel.set()                      # cancel before it starts
+        events.set_current(bus)
+        try:
+            audit = AuditLog(pathlib.Path(tempfile.mktemp()))
+            res = run_assessment("127.0.0.1", Scope.from_items(["127.0.0.1"]),
+                                 True, audit, phases={"recon", "scanning"})
+            self.assertEqual(res, [])          # no phases ran
+        finally:
+            events.set_current(None)
+
+    def test_runner_reports_timeout(self):
+        from sentari.runner import ToolRunner
+        ev = ToolRunner(10).run(["sleep", "5"], tool="sleep", timeout=1)
+        self.assertEqual(ev.returncode, 124)
+        self.assertIn("timeout", ev.stderr)
+
+
 class TestMonitor(unittest.TestCase):
     def _mon(self):
         return _Monitor({"target": "t", "mode": "scan", "model": ""})

@@ -132,18 +132,41 @@ class ToolRunner:
             self._evidence.append(ev)
             return ev
 
+        # Run via Popen and poll, so a user cancel (or the timeout) can kill the
+        # in-flight tool immediately instead of waiting for it to finish.
+        from . import events
+        rc, out, err = 1, "", ""
         try:
-            proc = subprocess.run(
-                exec_command, capture_output=True, text=True, timeout=timeout,
-            )
-            rc, out, err = proc.returncode, proc.stdout, proc.stderr
+            proc = subprocess.Popen(exec_command, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, text=True)
         except FileNotFoundError:
             rc, out, err = 127, "", f"tool not found: {command[0]}"
-        except subprocess.TimeoutExpired as e:
-            rc, out = 124, (e.stdout or "") if isinstance(e.stdout, str) else ""
-            err = f"timeout after {timeout}s"
         except Exception as e:  # defensive: still record it
             rc, out, err = 1, "", f"{type(e).__name__}: {e}"
+        else:
+            while True:
+                try:
+                    o, e = proc.communicate(timeout=1.0)
+                    out += o or ""
+                    err += e or ""
+                    rc = proc.returncode
+                    break
+                except subprocess.TimeoutExpired:
+                    reason = None
+                    if events.should_cancel():
+                        reason, rc = " [cancelled by user]", 130
+                    elif time.monotonic() - started > timeout:
+                        reason, rc = f" [timeout after {timeout}s]", 124
+                    if reason:
+                        proc.kill()
+                        try:
+                            o, e = proc.communicate(timeout=5)
+                            out += o or ""
+                            err += e or ""
+                        except Exception:
+                            pass
+                        err += reason
+                        break
 
         dur = round(time.monotonic() - started, 3)
         ev = Evidence(
