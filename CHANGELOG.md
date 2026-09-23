@@ -4,6 +4,12 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.30.0] - 2026-09-23
+
+### Added
+- Scheduled scans: `POST /api/schedules` (hourly/daily/weekly or a seconds interval) registers a recurring, tenant-scoped scan; the API server runs a scheduler that fires due schedules. `GET /api/schedules` and `GET`/`DELETE /api/schedules/{id}` manage them, isolated per user.
+- PR security reviews: `sentari pr-review SOURCE --base REF` runs semgrep on only the files changed between base and head (a PR diff), maps them to evidence-backed findings, and `--post PR` comments a summary via `gh`. Exits non-zero on a high-severity finding, so it works as a CI gate. Accepts a local path or a git URL.
+
 ## [0.29.0] - 2026-09-23
 
 ### Added

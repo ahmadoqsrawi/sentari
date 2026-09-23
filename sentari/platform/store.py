@@ -42,6 +42,21 @@ CREATE TABLE IF NOT EXISTS scans (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 CREATE INDEX IF NOT EXISTS idx_scans_user ON scans(user_id);
+CREATE TABLE IF NOT EXISTS schedules (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    target TEXT NOT NULL,
+    scope_json TEXT NOT NULL,
+    options_json TEXT,
+    mode TEXT,
+    interval_sec INTEGER NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at REAL NOT NULL,
+    last_run REAL,
+    next_run REAL NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_sched_user ON schedules(user_id);
 """
 
 
@@ -140,6 +155,61 @@ class PlatformStore:
                 "FROM scans WHERE user_id=? ORDER BY created_at DESC",
                 (user_id,)).fetchall()
         return [dict(r) for r in rows]
+
+    # ---- schedules (tenant-scoped) --------------------------------------
+    def add_schedule(self, user_id: str, target: str, scope: list, interval_sec: int,
+                     options: dict | None = None, mode: str | None = None) -> str:
+        sid = uuid.uuid4().hex[:16]
+        now = time.time()
+        with self._lock:
+            self.conn.execute(
+                "INSERT INTO schedules(id,user_id,target,scope_json,options_json,mode,"
+                "interval_sec,enabled,created_at,next_run) VALUES(?,?,?,?,?,?,?,1,?,?)",
+                (sid, user_id, target, json.dumps(scope), json.dumps(options or {}),
+                 mode, int(interval_sec), now, now + int(interval_sec)))
+            self.conn.commit()
+        return sid
+
+    def list_schedules(self, user_id: str) -> list[dict]:
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT id,target,mode,interval_sec,enabled,created_at,last_run,next_run "
+                "FROM schedules WHERE user_id=? ORDER BY created_at DESC",
+                (user_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_schedule(self, user_id: str, sched_id: str) -> dict | None:
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT * FROM schedules WHERE id=? AND user_id=?",
+                (sched_id, user_id)).fetchone()
+        return dict(row) if row else None
+
+    def delete_schedule(self, user_id: str, sched_id: str) -> bool:
+        with self._lock:
+            cur = self.conn.execute(
+                "DELETE FROM schedules WHERE id=? AND user_id=?", (sched_id, user_id))
+            self.conn.commit()
+            return cur.rowcount > 0
+
+    def due_schedules(self, now: float | None = None) -> list[dict]:
+        """Enabled schedules whose next_run has passed (across all tenants)."""
+        now = now if now is not None else time.time()
+        with self._lock:
+            rows = self.conn.execute(
+                "SELECT * FROM schedules WHERE enabled=1 AND next_run<=?", (now,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def mark_schedule_ran(self, sched_id: str, now: float | None = None) -> None:
+        now = now if now is not None else time.time()
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT interval_sec FROM schedules WHERE id=?", (sched_id,)).fetchone()
+            if row:
+                self.conn.execute(
+                    "UPDATE schedules SET last_run=?, next_run=? WHERE id=?",
+                    (now, now + row["interval_sec"], sched_id))
+                self.conn.commit()
 
     def close(self) -> None:
         with self._lock:

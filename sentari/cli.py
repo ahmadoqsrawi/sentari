@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.29.0"
+__version__ = "0.30.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -459,6 +459,48 @@ def _api_user(argv: list[str]) -> int:
         store.close()
 
 
+def _pr_review(argv: list[str]) -> int:
+    """`sentari pr-review SOURCE --base REF` - SAST on a PR's changed files."""
+    import argparse as _ap
+    ap = _ap.ArgumentParser(prog="sentari pr-review")
+    ap.add_argument("source", help="Local repo path or a git URL to clone.")
+    ap.add_argument("--base", required=True, help="Base ref to diff against (e.g. origin/main).")
+    ap.add_argument("--head", default="HEAD", help="Head ref (default HEAD).")
+    ap.add_argument("--json", metavar="FILE", help="Write findings JSON.")
+    ap.add_argument("--post", metavar="PR", help="Post a summary comment on this PR number (needs gh).")
+    ap.add_argument("--repo", metavar="OWNER/REPO", help="Repo slug for --post.")
+    a = ap.parse_args(argv)
+
+    from . import prreview, repo as repo_mod
+    repo_dir, cleanup = a.source, None
+    if repo_mod.is_repo_url(a.source):
+        print(f"Cloning {a.source}...", file=sys.stderr)
+        repo_dir, err = repo_mod.clone(a.source)
+        if err:
+            print(f"error: {err}", file=sys.stderr)
+            return 5
+        cleanup = repo_dir
+    try:
+        r = prreview.review(repo_dir, a.base, a.head)
+        if r.error:
+            print(f"error: {r.error}", file=sys.stderr)
+            return 4
+        print(prreview.comment_body(r))
+        if a.json:
+            Path(a.json).write_text(json.dumps({
+                "repo": a.source, "base": a.base, "head": a.head,
+                "changed": r.changed, "findings": r.findings}, indent=2), encoding="utf-8")
+            print(f"\nFindings JSON written to {a.json}", file=sys.stderr)
+        if a.post:
+            ok, msg = prreview.post_comment(a.post, prreview.comment_body(r), a.repo)
+            print(f"PR comment: {msg}", file=sys.stderr)
+        # non-zero exit if any high-severity finding, useful as a CI gate
+        return 1 if any(f["severity"] == "high" for f in r.findings) else 0
+    finally:
+        if cleanup:
+            repo_mod.cleanup(cleanup)
+
+
 def _shape_run_args(args):
     """Apply --instruction[-file], --mode, and --target-list to args in place.
 
@@ -515,6 +557,8 @@ def main(argv: list[str] | None = None) -> int:
         return _serve_api(argv[1:])
     if argv and argv[0] == "api-user":
         return _api_user(argv[1:])
+    if argv and argv[0] == "pr-review":
+        return _pr_review(argv[1:])
 
     args = build_parser().parse_args(argv)
 

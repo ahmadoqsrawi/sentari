@@ -29,6 +29,20 @@ _MODE_PHASES = {
     "standard": {"osint", "recon", "scanning", "vuln", "api"},
 }
 
+_INTERVALS = {"hourly": 3600, "daily": 86400, "weekly": 604800}
+
+
+def parse_interval(value) -> int | None:
+    """Accept 'hourly'/'daily'/'weekly' or a positive integer of seconds."""
+    if isinstance(value, (int, float)) and value >= 60:
+        return int(value)
+    if isinstance(value, str):
+        if value in _INTERVALS:
+            return _INTERVALS[value]
+        if value.isdigit() and int(value) >= 60:
+            return int(value)
+    return None
+
 
 def _run_scan(store: PlatformStore, scan_id: str, target: str, scope_items: list,
               authorized: bool, options: dict, safe_mode: bool, mode: str | None) -> None:
@@ -113,6 +127,38 @@ def dispatch(method: str, path: str, token: str | None, body: dict | None,
             return (200, scan) if scan else (404, {"error": "not found"})
         return 405, {"error": "method not allowed"}
 
+    if path == "/api/schedules":
+        if method == "GET":
+            return 200, {"schedules": store.list_schedules(user.id)}
+        if method == "POST":
+            body = body or {}
+            target = body.get("target")
+            if not target:
+                return 400, {"error": "target is required"}
+            if not body.get("authorized"):
+                return 400, {"error": "authorized attestation required: set authorized=true"}
+            interval = parse_interval(body.get("interval"))
+            if interval is None:
+                return 400, {"error": "interval must be hourly/daily/weekly or seconds >= 60"}
+            scope = body.get("scope") or [target]
+            options = body.get("options") or {}
+            if body.get("exclude"):
+                options["exclude"] = body["exclude"]
+            sched_id = store.add_schedule(user.id, target, scope, interval,
+                                          options=options, mode=body.get("mode"))
+            return 201, {"id": sched_id, "interval_sec": interval}
+        return 405, {"error": "method not allowed"}
+
+    if path.startswith("/api/schedules/"):
+        sched_id = path[len("/api/schedules/"):].strip("/")
+        if method == "GET":
+            sc = store.get_schedule(user.id, sched_id)
+            return (200, sc) if sc else (404, {"error": "not found"})
+        if method == "DELETE":
+            return (200, {"deleted": sched_id}) if store.delete_schedule(user.id, sched_id) \
+                else (404, {"error": "not found"})
+        return 405, {"error": "method not allowed"}
+
     return 404, {"error": "not found"}
 
 
@@ -147,17 +193,49 @@ def make_handler(store: PlatformStore, submit):
             code, resp = dispatch("POST", self.path, self._token(), body, store, submit)
             self._reply(code, resp)
 
+        def do_DELETE(self):
+            code, resp = dispatch("DELETE", self.path, self._token(), None, store, submit)
+            self._reply(code, resp)
+
     return _Handler
+
+
+def run_due_schedules(store: PlatformStore, submit, now: float | None = None) -> int:
+    """Enqueue a scan for each due schedule; returns how many fired. Pure enough
+    to call from a test with a fake submit and a fixed `now`."""
+    fired = 0
+    for sc in store.due_schedules(now):
+        options = json.loads(sc.get("options_json") or "{}")
+        scope = json.loads(sc.get("scope_json") or "[]")
+        scan_id = store.create_scan(sc["user_id"], sc["target"], sc.get("mode"))
+        submit(sc["user_id"], scan_id, sc["target"], scope, True, options, True, sc.get("mode"))
+        store.mark_schedule_ran(sc["id"], now)
+        fired += 1
+    return fired
+
+
+def _scheduler_loop(store: PlatformStore, submit, stop, interval: int = 30) -> None:
+    while not stop.is_set():
+        try:
+            run_due_schedules(store, submit)
+        except Exception:
+            pass
+        stop.wait(interval)
 
 
 def serve_api(db: str = "sentari-platform.db", host: str = "127.0.0.1",
               port: int = 8700, workers: int = 4) -> None:
+    import threading
     store = PlatformStore(db)
     executor = ThreadPoolExecutor(max_workers=workers)
     submit = make_submit(store, executor)
+    stop = threading.Event()
+    threading.Thread(target=_scheduler_loop, args=(store, submit, stop),
+                     daemon=True).start()
     httpd = ThreadingHTTPServer((host, port), make_handler(store, submit))
     print(f"Sentari platform API on http://{host}:{port}  (db={db})")
     print("Auth: Authorization: Bearer <token>. Create users with: sentari api-user add <email>")
+    print("Scheduler active: due schedules run automatically.")
     if host not in ("127.0.0.1", "localhost"):
         print("WARNING: bound to a public interface. Put it behind TLS/a reverse proxy "
               "and restrict access; tokens are bearer credentials.")
@@ -167,5 +245,6 @@ def serve_api(db: str = "sentari-platform.db", host: str = "127.0.0.1",
     except KeyboardInterrupt:
         print("\nstopped.")
     finally:
+        stop.set()
         executor.shutdown(wait=False)
         store.close()

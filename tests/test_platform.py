@@ -8,7 +8,8 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer
 
-from sentari.platform.api import dispatch, make_handler, make_submit
+from sentari.platform.api import (dispatch, make_handler, make_submit,
+                                  parse_interval, run_due_schedules)
 from sentari.platform.store import PlatformStore, hash_token
 
 
@@ -77,6 +78,58 @@ class TestDispatch(unittest.TestCase):
 
     def test_unknown_route_404(self):
         self.assertEqual(self.d("GET", "/api/nope", self.ta, None)[0], 404)
+
+
+class TestSchedules(unittest.TestCase):
+    def setUp(self):
+        self.s = PlatformStore(tempfile.mktemp(suffix=".db"))
+        self.addCleanup(self.s.close)
+        self.alice, self.ta = self.s.add_user("alice@x.com")
+        self.bob, self.tb = self.s.add_user("bob@x.com")
+
+    def test_parse_interval(self):
+        self.assertEqual(parse_interval("daily"), 86400)
+        self.assertEqual(parse_interval(3600), 3600)
+        self.assertEqual(parse_interval("120"), 120)
+        self.assertIsNone(parse_interval("nope"))
+        self.assertIsNone(parse_interval(5))  # below the 60s floor
+
+    def test_create_requires_authorized_and_interval(self):
+        c, _ = dispatch("POST", "/api/schedules", self.ta,
+                        {"target": "x.com", "interval": "daily"}, self.s, lambda *a: None)
+        self.assertEqual(c, 400)  # missing authorized
+        c, _ = dispatch("POST", "/api/schedules", self.ta,
+                        {"target": "x.com", "authorized": True, "interval": "nope"},
+                        self.s, lambda *a: None)
+        self.assertEqual(c, 400)  # bad interval
+
+    def test_create_and_tenant_isolation(self):
+        c, resp = dispatch("POST", "/api/schedules", self.ta,
+                           {"target": "x.com", "scope": ["x.com"], "authorized": True,
+                            "interval": "daily"}, self.s, lambda *a: None)
+        self.assertEqual(c, 201)
+        sid = resp["id"]
+        self.assertEqual(dispatch("GET", f"/api/schedules/{sid}", self.tb, None,
+                                  self.s, lambda *a: None)[0], 404)
+        self.assertEqual(dispatch("GET", f"/api/schedules/{sid}", self.ta, None,
+                                  self.s, lambda *a: None)[0], 200)
+
+    def test_due_schedules_fire_once_and_reschedule(self):
+        sid = self.s.add_schedule(self.alice.id, "x.com", ["x.com"], 3600, mode="quick")
+        self.s.conn.execute("UPDATE schedules SET next_run=0")
+        self.s.conn.commit()
+        calls = []
+        fired = run_due_schedules(self.s, lambda *a: calls.append(a), now=1_000_000.0)
+        self.assertEqual(fired, 1)
+        self.assertEqual(len(calls), 1)
+        # next_run advanced, so it does not fire again at the same now
+        again = run_due_schedules(self.s, lambda *a: calls.append(a), now=1_000_000.0)
+        self.assertEqual(again, 0)
+
+    def test_delete(self):
+        sid = self.s.add_schedule(self.alice.id, "x.com", ["x.com"], 3600)
+        self.assertTrue(self.s.delete_schedule(self.alice.id, sid))
+        self.assertFalse(self.s.delete_schedule(self.bob.id, sid))  # already gone / not owner
 
 
 class TestLiveHTTP(unittest.TestCase):
