@@ -146,6 +146,7 @@ def _plain_printer(meta):
             return  # too chatty for a plain stream
         prefix = {"phase_start": "==>", "phase_done": "  <", "finding": " !!",
                   "agent_step": "  >", "thinking": "  ~", "observation": "  <",
+                  "plan": " *", "spawn": " +",
                   "usage": "  $", "run_start": "==", "run_done": "=="}.get(ev.kind, "  .")
         line = f"{prefix} [{ev.source}] {ev.text}".rstrip()
         print(line[:200], flush=True)
@@ -162,7 +163,7 @@ def _print_plain_summary(mon: _Monitor) -> None:
 _KIND_COLOR = {
     "phase_start": 2, "phase_done": 2, "finding": 3, "thinking": 6, "plan": 6,
     "agent_step": 4, "observation": 0, "tool": 4, "usage": 5, "error": 3,
-    "todo": 5, "agent": 4,
+    "todo": 5, "agent": 4, "spawn": 6,
 }
 
 
@@ -248,8 +249,10 @@ def _draw(stdscr, mon: _Monitor, scroll: int) -> None:
     for ev in lines[start:end]:
         prefix = {"phase_start": "==>", "phase_done": "  <", "finding": " !!",
                   "agent_step": "  >", "thinking": "  ~", "plan": " *", "observation": "  <",
-                  "tool": "  .", "usage": "  $", "note": " >>"}.get(ev.kind, "  .")
-        text = f"{prefix} [{ev.source}] {ev.text}"
+                  "tool": "  .", "usage": "  $", "note": " >>",
+                  "spawn": " +"}.get(ev.kind, "  .")
+        label = "spawning " if ev.kind == "spawn" else ""
+        text = f"{prefix} {label}[{ev.source}] {ev.text}"
         color = cp(_KIND_COLOR.get(ev.kind, 1))
         if ev.kind == "finding" and ev.data.get("severity") in ("critical", "high"):
             color = cp(3) | curses.A_BOLD

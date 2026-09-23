@@ -45,6 +45,7 @@ def attach(bus: events.EventBus, target: str, options: dict | None = None) -> No
             a = threatmodel.assessor_for_phase(ev.source)
             if a and a["name"] not in started:
                 started.add(a["name"])
+                bus.emit(events.Event("spawn", a["name"], a.get("mandate", "")))
                 bus.emit(events.Event("agent", a["name"], "", {"status": "running"}))
                 _set_todo(a["name"], "running")
         elif ev.kind == "phase_done":

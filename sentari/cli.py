@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.34.0"
+__version__ = "0.35.0"
 
 
 def build_parser() -> argparse.ArgumentParser:

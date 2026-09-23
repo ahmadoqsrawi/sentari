@@ -20,29 +20,52 @@ from .models import PhaseResult
 ASSESSORS: list[dict] = [
     {"name": "Recon & Perimeter Mapper",
      "skills": ["asset_discovery", "dns", "http_fingerprint"],
-     "phases": ["osint", "recon", "scanning"], "enable": {}},
+     "phases": ["osint", "recon", "scanning"], "enable": {},
+     "mandate": "Map the attack surface: DNS and IPs, open ports and services, web "
+                "fingerprint, TLS/headers, and content discovery. Build the endpoint "
+                "and technology inventory the other assessors rely on."},
     {"name": "Known-Vulnerability Assessor",
      "skills": ["nuclei", "cve", "sqli"],
-     "phases": ["vuln"], "enable": {}},
+     "phases": ["vuln"], "enable": {},
+     "mandate": "Run template-based vulnerability scanning (nuclei, with CVSS) and, "
+                "when opted in, sqlmap; map every match to a finding backed by the "
+                "tool's own evidence."},
     {"name": "Auth & API Assessor",
      "skills": ["authentication_jwt", "api_security", "rate_limiting"],
-     "phases": ["api"], "enable": {"api_tests": True}},
+     "phases": ["api"], "enable": {"api_tests": True},
+     "mandate": "Audit authentication and the API surface: JWT weaknesses, missing "
+                "rate limiting, unauthenticated access, and state-changing methods. "
+                "Read-only (GET/OPTIONS)."},
     {"name": "Authorization Assessor",
      "skills": ["idor", "broken_function_level_authorization"],
      "phases": ["access-control"], "enable": {"access_control": True},
-     "needs": ("identities", "no test-user credentials supplied")},
+     "needs": ("identities", "no test-user credentials supplied"),
+     "mandate": "Test broken access control and IDOR by requesting protected "
+                "resources as each supplied identity and anonymously, comparing what "
+                "each can reach."},
     {"name": "Injection Assessor",
      "skills": ["ssrf", "xxe", "command_injection", "ssti", "nosqli"],
-     "phases": ["injection"], "enable": {"injection": True}},
+     "phases": ["injection"], "enable": {"injection": True},
+     "mandate": "Test SSRF, XXE, and OS command injection (confirmed out-of-band via "
+                "a callback), SSTI (expression evaluation), and NoSQL injection "
+                "against parameters and endpoints."},
     {"name": "Framework/SPA Assessor",
      "skills": ["nextjs", "open_redirect", "host_header", "image_ssrf"],
-     "phases": ["framework"], "enable": {"framework": True}},
+     "phases": ["framework"], "enable": {"framework": True},
+     "mandate": "Check modern-app issues: open redirect (Location-confirmed), Next.js "
+                "image-optimizer SSRF (/_next/image, OOB-confirmed), and host-header / "
+                "X-Forwarded-Host reflection."},
     {"name": "Client-side Assessor",
      "skills": ["xss", "dom", "clickjacking", "csrf"],
-     "phases": ["browser"], "enable": {"browser": True}},
+     "phases": ["browser"], "enable": {"browser": True},
+     "mandate": "Drive a headless browser for execution-confirmed reflected/DOM/stored "
+                "XSS and prototype pollution, plus clickjacking, token-less CSRF forms, "
+                "and mixed content."},
     {"name": "Verification Assessor",
      "skills": ["proof", "read_only_confirmation"],
-     "phases": ["verification"], "enable": {}},
+     "phases": ["verification"], "enable": {},
+     "mandate": "Read-only confirmation of discovered exposures (e.g. fetching an "
+                "exposed .git/config to prove it); retrieved secrets are redacted."},
 ]
 
 

@@ -4,6 +4,11 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.35.0] - 2026-09-23
+
+### Added
+- Orchestrated live view now streams a real per-assessor "spawning <name>: <mandate>" block when each assessor starts (its actual task and scope), so the feed reads like a dispatch log without fabricating any LLM reasoning. Free-form model "thinking" still requires --agent with a real provider; the deterministic view shows the plan, spawn mandates, todo checklist, agent tree, and the real tool/finding stream.
+
 ## [0.34.0] - 2026-09-23
 
 ### Added
