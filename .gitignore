@@ -16,3 +16,4 @@ sentari-*.json
 pentest.json
 code-review.json
 sentari-audit.log
+sentari-platform.db

@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-253%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-263%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -404,6 +404,8 @@ sentari --list-phases
 | `sentari view [RUN]` | Open a run in the browser (select and copy anything); serves a run file, directory, or `--db`. |
 | `--tui` (+ `--json`/`--runs-dir`/`--db`) | Browse results in an interactive terminal viewer. |
 | `sentari completions <bash\|zsh>` | Print a shell tab-completion script. |
+| `sentari serve-api` | Multi-tenant platform API: user accounts + API tokens, tenant-isolated scans (submit/list/get). |
+| `sentari api-user add <email>` / `list` | Create/list platform users and mint their API token. |
 | `-m` / `--mode {quick,standard,deep}` | Depth preset: quick (recon+headers), standard (+vuln+API), deep (full pipeline). |
 | `--instruction TEXT` / `--instruction-file FILE` | Guidance/briefing for the run (sets the agent goal, kept with the run). |
 | `--target-list FILE` | Assess many targets (one per line) via `--graph`. |
@@ -495,6 +497,30 @@ export SENTARI_MODEL=gpt-4o      # optional; default model
 ## 🌐 Web dashboard and distributed runs
 
 The dashboard is read-only and binds to `127.0.0.1` by default. It shows completed runs and never starts a scan. For a Celery worker pool and the dashboard behind Redis and Postgres, see [`deploy/README.md`](deploy/README.md), which covers Docker Compose and Kubernetes.
+
+### Multi-tenant platform API (`sentari serve-api`)
+
+For a hosted, multi-user deployment, Sentari includes a small self-hosted API (stdlib only) with per-user API tokens and tenant isolation: a user can submit and read only their own scans, which run through the same evidence-first engine.
+
+```bash
+sentari api-user add alice@example.com        # mint a user + API token (shown once)
+sentari serve-api --host 127.0.0.1 --port 8700
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/health` | liveness (no auth) |
+| `POST /api/scans` | start a scan (`Authorization: Bearer <token>`); body needs `target`, `scope`, and `authorized: true` |
+| `GET /api/scans` | list the caller's scans |
+| `GET /api/scans/{id}` | the caller's scan status + report |
+
+```bash
+curl -s -X POST http://127.0.0.1:8700/api/scans \
+  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"target":"https://app.example.com","scope":["app.example.com"],"authorized":true,"mode":"deep"}'
+```
+
+Tokens are stored only as SHA-256 hashes, and the authorization attestation (`authorized: true`) is required per scan, so the platform never loosens the scope or evidence rules. Bind it to localhost and put it behind TLS/a reverse proxy for real use; it is the foundation for the managed control plane (scheduling, PR reviews, and a hosted OOB service build on top).
 
 ## 📂 Project layout
 

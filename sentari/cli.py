@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.28.0"
+__version__ = "0.29.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -409,6 +409,56 @@ def _completions(argv: list[str]) -> int:
     return 0
 
 
+def _serve_api(argv: list[str]) -> int:
+    """`sentari serve-api` - the multi-tenant platform HTTP API."""
+    import argparse as _ap
+    ap = _ap.ArgumentParser(prog="sentari serve-api")
+    ap.add_argument("--db", default="sentari-platform.db", help="Platform SQLite DB path.")
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8700)
+    ap.add_argument("--workers", type=int, default=4, help="Concurrent scan workers.")
+    a = ap.parse_args(argv)
+    from .platform.api import serve_api
+    serve_api(db=a.db, host=a.host, port=a.port, workers=a.workers)
+    return 0
+
+
+def _api_user(argv: list[str]) -> int:
+    """`sentari api-user add <email>` / `list` - manage platform users offline."""
+    import argparse as _ap
+    ap = _ap.ArgumentParser(prog="sentari api-user")
+    ap.add_argument("action", choices=["add", "list"])
+    ap.add_argument("email", nargs="?")
+    ap.add_argument("--db", default="sentari-platform.db")
+    ap.add_argument("--role", default="user")
+    a = ap.parse_args(argv)
+    from .platform.store import PlatformStore
+    store = PlatformStore(a.db)
+    try:
+        if a.action == "add":
+            if not a.email:
+                print("error: api-user add <email>", file=sys.stderr)
+                return 2
+            try:
+                user, token = store.add_user(a.email, role=a.role)
+            except ValueError as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 4
+            print(f"Created user {user.email} (role {user.role}).")
+            print("API token (shown once, store it now):")
+            print(f"  {token}")
+            print("Use it as:  Authorization: Bearer <token>")
+        else:
+            users = store.list_users()
+            if not users:
+                print("No users yet. Add one with: sentari api-user add <email>")
+            for u in users:
+                print(f"  {u['email']}  role={u['role']}  id={u['id']}")
+        return 0
+    finally:
+        store.close()
+
+
 def _shape_run_args(args):
     """Apply --instruction[-file], --mode, and --target-list to args in place.
 
@@ -461,6 +511,10 @@ def main(argv: list[str] | None = None) -> int:
         return _view(argv[1:])
     if argv and argv[0] == "completions":
         return _completions(argv[1:])
+    if argv and argv[0] == "serve-api":
+        return _serve_api(argv[1:])
+    if argv and argv[0] == "api-user":
+        return _api_user(argv[1:])
 
     args = build_parser().parse_args(argv)
 

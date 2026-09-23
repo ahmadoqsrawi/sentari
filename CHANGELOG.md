@@ -4,6 +4,13 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.29.0] - 2026-09-23
+
+### Added
+- Multi-tenant platform core (`sentari serve-api`): a stdlib HTTP API with per-user API tokens and tenant isolation. `POST /api/scans` (Bearer auth) starts a scan and requires an `authorized: true` attestation; `GET /api/scans` and `GET /api/scans/{id}` return only the caller's own scans. Scans run through the same evidence-first engine in a bounded worker pool. Tokens are stored only as SHA-256 hashes.
+- `sentari api-user add <email>` / `list`: create and list platform users and mint their API token offline.
+- Platform store (SQLite, stdlib) for users and scans; every scan read is filtered by the authenticated user so one tenant cannot see another's runs.
+
 ## [0.28.0] - 2026-09-23
 
 ### Added
