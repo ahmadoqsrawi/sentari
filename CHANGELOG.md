@@ -4,6 +4,13 @@ All notable changes to Sentari are recorded here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and versioning follows
 [SemVer](https://semver.org/).
 
+## [0.26.0] - 2026-09-23
+
+### Added
+- Live terminal monitor (--live): a multi-panel curses view of a run in progress - header with target/mode/model/elapsed and request, finding, token, and estimated-cost counters; a live color-coded transcript of phases, tools, findings, and agent steps/thinking; and a phase roster with status. Streams plain lines without a TTY.
+- An in-process event bus (events.py) that phases, the tool runner, the agent loop, and the AI providers publish real events to; emit is a no-op when nothing is listening, so normal runs pay nothing.
+- Real token-usage capture in the OpenAI and Anthropic providers (from the API response), with an optional cost estimate from a per-model price table; unknown models report tokens with no fabricated cost.
+
 ## [0.25.0] - 2026-09-23
 
 ### Added

@@ -98,11 +98,15 @@ def _run_json(provider, disp, audit, target, goal, safe_mode, max_steps, out) ->
         except Exception:
             out.transcript.append({"step": step, "error": "unparseable model reply"})
             break
+        from .. import events
         audit.record("agent.step", target=target, step=step, tool=tool)
         if tool == "finish":
             out.transcript.append({"step": step, "tool": "finish", "args": args})
+            events.emit("thinking", "agent", "finished")
             break
+        events.emit("agent_step", "agent", f"{tool}({json.dumps(args)[:80]})", step=step)
         obs = disp.dispatch(tool, args)
+        events.emit("observation", tool, str(obs)[:160])
         out.transcript.append({"step": step, "tool": tool, "args": args, "observation": obs})
         convo.append(f"[{step}] {tool}({json.dumps(args)}) -> {obs}")
 
@@ -114,8 +118,11 @@ def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out) 
     messages = [{"role": "user",
                  "content": (f"Goal: {goal}\n" if goal else "") +
                             "Assess the target using the tools. Call finish when done."}]
+    from .. import events
     for step in range(1, max_steps + 1):
         turn = provider.tool_turn(system, messages, OPENAI_TOOLS, max_tokens=800)
+        if turn.get("text"):
+            events.emit("thinking", "agent", str(turn["text"])[:200])
         calls = turn.get("tool_calls") or []
         if not calls:
             out.transcript.append({"step": step, "text": (turn.get("text") or "")[:200]})
@@ -127,9 +134,13 @@ def _run_native(provider, disp, audit, target, goal, safe_mode, max_steps, out) 
             if c["name"] == "finish":
                 out.transcript.append({"step": step, "tool": "finish", "args": c["args"]})
                 messages.append({"role": "tool", "tool_call_id": c["id"], "content": "ok"})
+                events.emit("thinking", "agent", "finished")
                 finished = True
                 continue
+            events.emit("agent_step", "agent",
+                        f"{c['name']}({json.dumps(c['args'])[:80]})", step=step)
             obs = disp.dispatch(c["name"], c["args"])
+            events.emit("observation", c["name"], str(obs)[:160])
             out.transcript.append({"step": step, "tool": c["name"], "args": c["args"],
                                    "observation": obs})
             messages.append({"role": "tool", "tool_call_id": c["id"], "content": obs})

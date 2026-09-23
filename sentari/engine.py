@@ -35,7 +35,9 @@ def run_assessment(
 ) -> list[PhaseResult]:
     """Authorize the target, run the selected phases in order, tag compliance.
     Raises AuthorizationError if the target is not authorized/in scope."""
+    from . import events
     authorize(target, scope, authorized, audit)
+    events.emit("run_start", "engine", target)
 
     ctx = PhaseContext(target=target, runner=ToolRunner(timeout, dry_run),
                        safe_mode=safe_mode, options=options or {})
@@ -44,11 +46,20 @@ def run_assessment(
         if phases is not None and cls.name not in phases:
             continue
         audit.record("phase.start", target=target, phase=cls.name)
+        events.emit("phase_start", cls.name, cls.description)
         ctx.runner = ToolRunner(timeout, dry_run)
         result = cls().run(ctx)
         ctx.shared.setdefault("prior_findings", []).extend(result.findings)
+        for f in result.findings:
+            sev = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
+            events.emit("finding", cls.name, f.title, severity=sev,
+                        location=f.location or "")
         audit.record("phase.done", target=target, phase=cls.name,
                      findings=len(result.findings), error=result.error)
+        events.emit("phase_done", cls.name,
+                    f"{len(result.findings)} finding(s)"
+                    + (f"; error: {result.error}" if result.error else ""),
+                    findings=len(result.findings), error=bool(result.error))
         results.append(result)
 
     # Gated exploitation runs only with safe mode off and an explicit, confirmed
@@ -97,6 +108,8 @@ def run_assessment(
     from . import prioritize
     prioritize.apply_business_impact(results, asset_value)
     prioritize.apply_risk(results)
+    events.emit("run_done", "engine",
+                f"{sum(len(r.findings) for r in results)} finding(s) total")
     return results
 
 

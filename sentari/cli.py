@@ -12,7 +12,7 @@ from .authorization import AuditLog, AuthorizationError, Scope
 from .phases import PHASES
 from .reporting import console
 
-__version__ = "0.25.0"
+__version__ = "0.26.0"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -226,6 +226,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threat-model", action="store_true",
                    help="Plan the run as skill-scoped assessors (auth, authz, injection, "
                         "framework, client-side, ...) and report what each one covered.")
+    p.add_argument("--live", action="store_true",
+                   help="Run under a live terminal monitor: header (model/tokens/cost), "
+                        "a transcript of phases/tools/findings, and a phase roster.")
     p.add_argument("--graph", action="store_true",
                    help="Graph of agents: specialized nodes share a blackboard; targets run in parallel.")
     p.add_argument("--graph-target", action="append", default=[], metavar="TARGET",
@@ -812,16 +815,37 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     from .engine import run_assessment
+
+    def _mode_label():
+        if args.web_pentest:
+            return "web-pentest"
+        if args.code_review:
+            return "code-review"
+        if args.autonomous:
+            return "autonomous"
+        if args.threat_model:
+            return "threat-model"
+        if args.agent:
+            return "agent"
+        return "scan"
+
+    def _maybe_live(fn):
+        if args.live:
+            from . import livetui
+            return livetui.run(fn, {"target": args.target, "mode": _mode_label(),
+                                    "model": args.ai_model or ""})
+        return fn()
+
     try:
         if args.agent:
             from .agent import run_agent
             from .ai import get_provider
             provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
-            ar = run_agent(
+            ar = _maybe_live(lambda: run_agent(
                 args.target, scope, args.authorized, audit, provider,
                 goal=args.goal, safe_mode=not args.no_safe_mode, timeout=args.timeout,
                 max_steps=args.agent_steps,
-            )
+            ))
             results = ar.results
             if not args.no_compliance:
                 from . import compliance
@@ -846,12 +870,12 @@ def main(argv: list[str] | None = None) -> int:
             from .autopilot import run_autopilot
             from .ai import get_provider
             provider = get_provider(args.ai_provider, args.ai_model, base_url=args.ai_base_url)
-            ap = run_autopilot(
+            ap = _maybe_live(lambda: run_autopilot(
                 args.target, scope, args.authorized, audit, provider,
                 safe_mode=not args.no_safe_mode, timeout=args.timeout, dry_run=args.dry_run,
                 options=options, max_steps=args.autopilot_steps,
                 apply_compliance=not args.no_compliance, apply_anomaly=not args.no_anomaly,
-            )
+            ))
             results = ap.results
             if ap.note:
                 print(ap.note)
@@ -861,13 +885,13 @@ def main(argv: list[str] | None = None) -> int:
             audit.record("autopilot.done", target=args.target,
                          steps=len(ap.decisions), provider=ap.provider)
         else:
-            results = run_assessment(
+            results = _maybe_live(lambda: run_assessment(
                 args.target, scope, args.authorized, audit,
                 safe_mode=not args.no_safe_mode, phases=selected, timeout=args.timeout,
                 dry_run=args.dry_run, options=options, apply_compliance=not args.no_compliance,
                 apply_anomaly=not args.no_anomaly, apply_heuristics=not args.no_heuristics,
                 apply_threatintel=not args.no_threatintel, asset_value=args.asset_value,
-            )
+            ))
     except AuthorizationError as e:
         print(f"REFUSED: {e}", file=sys.stderr)
         return 3

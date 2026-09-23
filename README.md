@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue.svg" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS-orange.svg" alt="Platform">
   <img src="https://img.shields.io/badge/core-stdlib%20only-teal.svg" alt="Stdlib core">
-  <img src="https://img.shields.io/badge/tests-229%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-236%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" alt="License: AGPL-3.0">
   <a href=".github/workflows/ci.yml"><img src="https://github.com/ahmadoqsrawi/sentari/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -90,6 +90,10 @@ Recon and OSINT, dynamic (DAST) and static (SAST) testing, injection with out-of
 - **False-positive suppression:** catch-all / soft-404 detection drops "sensitive path reachable" hits on servers that answer 200 for every path
 - **Threat model (`--threat-model`):** frames the run as skill-scoped assessors and reports what each covered and concluded
 - **Preflight:** `--preflight` (and a banner at scan start) reports which scanner tools are present, so a missing tool is visible rather than a silent zero
+
+### 📟 Live monitor (`--live`)
+- A multi-panel terminal view of a run in progress: a header with target, mode, model, elapsed time, request/finding counts, and (for AI modes) real token usage and an estimated cost; a live color-coded transcript of phases, tools, findings, and agent steps/thinking; and a roster of phases with their status
+- Everything shown is a real event from the run; nothing is invented. Without a TTY it streams the same events as plain lines
 
 ### 🧾 Business logic (`--workflow FILE`)
 - Replays an operator-defined request sequence (with variable capture) and flags steps that succeed when they should fail (workflow/authorization bypass, price/quantity tampering) or return an unexpected status
@@ -374,6 +378,7 @@ sentari --list-phases
 | `--cloud-audit aws\|azure\|gcp\|kubernetes` | Audit cloud account configuration with Prowler. |
 | `--framework` | Framework/SPA checks: open redirect, Next.js image-optimizer SSRF (OOB), host-header reflection. |
 | `--threat-model` | Plan the run as skill-scoped assessors (auth, authz, injection, framework, client-side, ...) and report what each covered. |
+| `--live` | Run under a live terminal monitor: header (model/tokens/cost), a transcript of phases/tools/findings/agent steps, and a phase roster. |
 | `--graph` (+ `--graph-target`) | Graph of agents: shared blackboard, parallel targets, cross-asset correlation. |
 | `--poc SCRIPT` (+ `--poc-image`) | Run a Python PoC against the target in a sandbox container (gated). |
 | `--proxy PORT` / `--proxy-ingest FILE` | Capture HTTP traffic via mitmproxy / analyze a capture (JSONL or HAR). |

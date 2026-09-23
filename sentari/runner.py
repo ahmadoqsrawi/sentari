@@ -91,6 +91,9 @@ class ToolRunner:
             started_at=ts, ended_at=ts, duration_sec=duration_sec, tool="sentari-builtin",
         )
         self._evidence.append(ev)
+        from . import events
+        events.emit("tool", "builtin", " ".join(str(a) for a in action),
+                    rc=returncode, duration=duration_sec)
         return ev
 
     def run(
@@ -142,11 +145,15 @@ class ToolRunner:
         except Exception as e:  # defensive: still record it
             rc, out, err = 1, "", f"{type(e).__name__}: {e}"
 
+        dur = round(time.monotonic() - started, 3)
         ev = Evidence(
             id=uuid.uuid4().hex[:12], command=command, returncode=rc,
             stdout=out, stderr=err, started_at=started_at,
             ended_at=datetime.now(timezone.utc).isoformat(),
-            duration_sec=round(time.monotonic() - started, 3), tool=tool,
+            duration_sec=dur, tool=tool,
         )
         self._evidence.append(ev)
+        from . import events
+        events.emit("tool", tool, f"{' '.join(command)} -> exit {rc} ({dur}s)",
+                    rc=rc, duration=dur)
         return ev

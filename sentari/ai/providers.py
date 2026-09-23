@@ -23,6 +23,40 @@ def _try_import(mod: str):
         return None
 
 
+# Rough per-1M-token prices (USD in/out) for a cost *estimate* only; an unknown
+# model reports tokens with no cost rather than a made-up number.
+_PRICES = {
+    "gpt-5": (1.25, 10.0), "gpt-4.1": (2.0, 8.0), "gpt-4o-mini": (0.15, 0.6),
+    "gpt-4o": (2.5, 10.0), "o4-mini": (1.1, 4.4), "o3": (2.0, 8.0),
+    "claude-3-5-haiku": (0.8, 4.0), "claude-3-5-sonnet": (3.0, 15.0),
+    "claude-sonnet": (3.0, 15.0), "claude-3-opus": (15.0, 75.0),
+}
+
+
+def _emit_usage(model: str, resp) -> None:
+    """Publish real token usage from an SDK response to the event bus."""
+    from .. import events
+    prompt = completion = 0
+    try:
+        u = getattr(resp, "usage", None)
+        if u is not None:
+            prompt = getattr(u, "prompt_tokens", None) or getattr(u, "input_tokens", 0) or 0
+            completion = (getattr(u, "completion_tokens", None)
+                          or getattr(u, "output_tokens", 0) or 0)
+    except Exception:
+        return
+    total = prompt + completion
+    if not total:
+        return
+    cost = None
+    for k, (pin, pout) in _PRICES.items():
+        if model and k in model:
+            cost = round(prompt / 1e6 * pin + completion / 1e6 * pout, 4)
+            break
+    events.emit("usage", model or "", f"+{total} tok", prompt=prompt,
+                completion=completion, total=total, cost=cost)
+
+
 class LLMProvider(ABC):
     name = "base"
 
@@ -75,6 +109,7 @@ class OpenAICompatProvider(LLMProvider):
                       {"role": "user", "content": user}],
             max_completion_tokens=max_tokens,
         )
+        _emit_usage(self.model, r)
         return r.choices[0].message.content or ""
 
     def supports_tools(self) -> bool:
@@ -100,6 +135,7 @@ class OpenAICompatProvider(LLMProvider):
         r = self._client().chat.completions.create(
             model=self.model, messages=convo, tools=tools, tool_choice="auto",
             max_completion_tokens=max_tokens)
+        _emit_usage(self.model, r)
         msg = r.choices[0].message
         calls = []
         for tc in (msg.tool_calls or []):
@@ -128,6 +164,7 @@ class AnthropicProvider(LLMProvider):
             model=self.model, max_tokens=max_tokens, system=system,
             messages=[{"role": "user", "content": user}],
         )
+        _emit_usage(self.model, r)
         return "".join(getattr(b, "text", "") for b in r.content)
 
     def supports_tools(self) -> bool:
@@ -157,6 +194,7 @@ class AnthropicProvider(LLMProvider):
                 conv.append({"role": m["role"], "content": m.get("content", "")})
         r = client.messages.create(model=self.model, max_tokens=max_tokens,
                                    system=system, tools=a_tools, messages=conv)
+        _emit_usage(self.model, r)
         text, calls = None, []
         for block in r.content:
             if getattr(block, "type", "") == "text":
